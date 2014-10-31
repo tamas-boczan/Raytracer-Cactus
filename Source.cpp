@@ -187,33 +187,33 @@ public:
     Material() {
     }
 
-    Material(Color const &F0, Color const &n, Color const &kd, Color const &ks, float shine, bool isReflective, bool isRefractive)
-            : F0(F0), n(n), kd(kd), ks(ks), shine(shine), isReflective(isReflective), isRefractive(isRefractive) {
+    Material(Color const &n, Color const &kd, Color const &ks, float shine, bool isReflective, bool isRefractive)
+            :n(n), kd(kd), ks(ks), shine(shine), isReflective(isReflective), isRefractive(isRefractive) {
     }
 
-    Color reflRadiance(Vector *l, Vector *n, Vector *v, Color *lIn) {
+    Color reflRadiance(Vector &l, Vector &n, Vector &v, Color &lIn) {
         // TODO
     }
 
-    Vector reflect(Vector *n, Vector *v) {
-        // TODO
+    Vector reflect(Vector &n, Vector &v) {
+        float cosAlpha = -(n * v);
+        return v + n * 2.0 * cosAlpha;
     }
 
-    Vector refract(Vector *n, Vector *v) {
-        // TODO
+    Vector refract(Vector &n, Vector &v) {
+        // TODO 07.diasor, 10.dia
+        // float = sinAlpha / sinBeta;
     }
 
-    Color Fresnel(Vector *n, Vector *v) {
-        // TODO
+    Color Fresnel(Vector const &n, Vector const &v) {
+        float cosTheta = (float) ((n*v)*(-1.0));
+        Color one = Color(1.0, 1.0, 1.0);
+        return F0 + (one - F0) * pow((1 - cosTheta), 5);
     }
 
 
     Color const &getF0() const {
         return F0;
-    }
-
-    void setF0(Color const &F0) {
-        Material::F0 = F0;
     }
 
     Color const &getN() const {
@@ -283,7 +283,7 @@ public:
         Object::material = material;
     }
 
-    virtual Vector intersect(Ray *ray, Vector *normal) {
+    virtual Vector intersect(Ray &ray, Vector &normal) {
     };
 
 };
@@ -295,7 +295,7 @@ public:
     Plane(Material const &material, Vector const &p, Vector const &n) : Object(material), p(p), n(n) {
     }
 
-    Vector intersect(Ray *ray, Vector *normal) {
+    Vector intersect(Ray &ray, Vector &normal) {
         // TODO
     }
 
@@ -325,7 +325,7 @@ public:
             : Object(material), center(center), radius(radius), height(height), direction(direction) {
     }
 
-    Vector intersect(Ray *ray, Vector *normal) {
+    Vector intersect(Ray &ray, Vector &normal) {
         // TODO
     }
 
@@ -374,7 +374,7 @@ public:
             : Object(material), focus1(focus1), focus2(focus2), distance(distance) {
     }
 
-    Vector intersect(Ray *ray, Vector *normal) {
+    Vector intersect(Ray &ray, Vector &normal) {
         // TODO
     }
 
@@ -412,7 +412,7 @@ public:
             : Object(material), plane(plane), focus(focus), height(height) {
     }
 
-    Vector intersect(Ray *ray, Vector *normal) {
+    Vector intersect(Ray &ray, Vector &normal) {
         // TODO
     }
 
