@@ -82,6 +82,10 @@ struct Vector {
         return Vector(x * a, y * a, z * a);
     }
 
+    Vector operator/(float a) {
+        return Vector(x / a, y / a, z / a);
+    }
+
     Vector operator+(const Vector &v) {
         return Vector(x + v.x, y + v.y, z + v.z);
     }
@@ -98,8 +102,12 @@ struct Vector {
         return Vector(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
     }
 
-    float Length() {
+    float length() {
         return sqrt(x * x + y * y + z * z);
+    }
+
+    Vector normalized() {
+        return *this / length();
     }
 };
 
@@ -123,20 +131,32 @@ struct Color {
         return Color(r * a, g * a, b * a);
     }
 
+    Color operator/(float a) {
+        return Color(r / a, g / a, b / a);
+    }
+
     Color operator*(const Color &c) {
         return Color(r * c.r, g * c.g, b * c.b);
     }
 
+    Color operator/(const Color &c) {
+        return Color(r / c.r, g / c.g, b / c.b);
+    }
+
     Color operator+(const Color &c) {
         return Color(r + c.r, g + c.g, b + c.b);
+    }
+
+    Color operator-(const Color &c) {
+        return Color(r - c.r, g - c.g, b - c.b);
     }
 };
 
 const int screenWidth = 600;    // alkalmazás ablak felbontása
 const int screenHeight = 600;
 
-const size_t objectCount = 10;
-const size_t lightCount = 3;
+const size_t maxObjectCount = 10;
+const size_t maxLightCount = 3;
 
 Color image[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
 
@@ -145,11 +165,24 @@ struct Ray {
     Vector v;
 };
 
+struct Intersection {
+    Vector pos, normal;
+    Object *obj;
+    float rayT;
+};
+
 class Material {
 private:
-    Color F0, n, kd, ks;
+    Color F0, n, k, ka, kd, ks;
     float shine;
     bool isReflective, isRefractive;
+
+    void computeF0() {
+        Color one = Color(1.0, 1.0, 1.0);
+        Color szamlalo = (n - one) * (n - one) + k * k;
+        Color nevezo   = (n + one) * (n + one) + k * k;
+        F0 = szamlalo / nevezo;
+    }
 public:
     Material() {
     }
@@ -253,6 +286,34 @@ public:
     virtual Vector intersect(Ray *ray, Vector *normal) {
     };
 
+};
+
+class Plane : Object {
+    Vector p, n;
+
+public:
+    Plane(Material const &material, Vector const &p, Vector const &n) : Object(material), p(p), n(n) {
+    }
+
+    Vector intersect(Ray *ray, Vector *normal) {
+        // TODO
+    }
+
+    Vector const &getP() const {
+        return p;
+    }
+
+    void setP(Vector const &p) {
+        Plane::p = p;
+    }
+
+    Vector const &getN() const {
+        return n;
+    }
+
+    void setN(Vector const &n) {
+        Plane::n = n;
+    }
 };
 
 class Cylinder : Object {
@@ -384,13 +445,29 @@ class Camera {
     Vector eye, lookat, up, right;
     float width, height;
 
+    Vector getPosOnScreen(unsigned X, unsigned Y) {
+        // Az ernyő melyik pontja felel meg egy pixelnek?
+        float screenPosX = (float) (((float)X + 0.5 - screenWidth / 2.0)
+                / ((float) screenWidth / 2.0));
+        float screenPosY = (float) (((float)X + 0.5 - screenWidth / 2.0)
+                / ((float) screenWidth / 2.0));
+
+        // Az ernyő is a világ része, mi a világkoordinátája a pontnak?
+        return lookat + (right * screenPosX) + (up * screenPosY);
+    }
+
 public:
     Camera(Vector const &eye, Vector const &lookat, Vector const &up, Vector const &right, float width, float height)
             : eye(eye), lookat(lookat), up(up), right(right), width(width), height(height) {
     }
 
-    Ray getRay(Vector *screeCoordinates) {
-        // TODO
+    Ray getRay(unsigned X, unsigned Y) {
+        Ray r;
+        Vector posOnScreen = getPosOnScreen(X, Y);
+        Vector direction = (posOnScreen - eye).normalized();
+        r.p0 = posOnScreen;
+        r.v = direction;
+        return r;
     }
 
     Vector const &getEye() const {
@@ -443,6 +520,7 @@ public:
 };
 
 class Light {
+    Color color;
     Vector p;
 
 // var?: lOut, type
@@ -462,6 +540,14 @@ public:
         //TODO
     }
 
+    Color const &getColor() const {
+        return color;
+    }
+
+    void setColor(Color const &color) {
+        Light::color = color;
+    }
+
     Vector const &getP() const {
         return p;
     }
@@ -472,19 +558,21 @@ public:
 };
 
 class Scene {
-    Object objects[objectCount];
-    Light lights[lightCount];
+    Object *objects[maxObjectCount];
+    Light lights[maxLightCount];
     size_t objectSize, lightSize;
     Camera camera;
 
-    // method: render, trace, intersectAll
+    Color trace(Ray const &ray, int d) {
+        // TODO
+    }
 
 public:
     Scene(Camera const &camera) : camera(camera) {
         objectSize = lightSize = 0;
     }
 
-    void add(Object const &object) {
+    void add(Object *object) {
         objects[objectSize++] = object;
     }
 
@@ -493,11 +581,11 @@ public:
     }
 
     void render() {
-        // TODO
-    }
-
-    Color trace(Ray *ray, int d) {
-        // TODO
+        for (size_t Y = 0; Y < screenHeight; Y++)
+            for (size_t X = 0; X < screenWidth; X++) {
+                Ray ray = camera.getRay(X, Y);
+                image[Y * screenWidth + X] = trace(ray, 0);
+            }
     }
 
     // TODO intersectAll
