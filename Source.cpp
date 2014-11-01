@@ -103,7 +103,7 @@ struct Vector {
     }
 
     float length() {
-        return sqrt(x * x + y * y + z * z);
+        return (float) sqrt(x * x + y * y + z * z);
     }
 
     Vector normalized() {
@@ -158,7 +158,12 @@ const int screenHeight = 600;
 const size_t maxObjectCount = 10;
 const size_t maxLightCount = 3;
 
+#define FLT_MAX 10000.0f
+#define NEAR_ZERO 0.0001f
+
 Color image[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
+
+
 
 struct Ray {
     Vector p0;
@@ -169,6 +174,7 @@ struct Intersection {
     Vector pos, normal;
     Object *obj;
     float rayT;
+    bool real;
 };
 
 class Material {
@@ -308,36 +314,46 @@ public:
         Object::material = material;
     }
 
-    virtual Vector intersect(Ray &ray, Vector &normal) {
-    };
+    virtual Intersection intersect(Ray const &ray) = 0;
 
 };
 
-class Plane : Object {
-    Vector p, n;
+class Rectangle : Object {
+    Vector p1, p2, n;
 
 public:
-    Plane(Material const &material, Vector const &p, Vector const &n) : Object(material), p(p), n(n) {
+
+    Rectangle(Material const &material, Vector const &p1, Vector const &p2, Vector const &n)
+            : Object(material), p1(p1), p2(p2), n(n) {
     }
 
-    Vector intersect(Ray &ray, Vector &normal) {
+    Vector const &getP1() const {
+        return p1;
+    }
+
+    void setP1(Vector const &p1) {
+        Rectangle::p1 = p1;
+    }
+
+    Vector const &getP2() const {
+        return p2;
+    }
+
+    void setP2(Vector const &p2) {
+        Rectangle::p2 = p2;
+    }
+
+    Intersection intersect(Ray const &ray) {
         // TODO
     }
 
-    Vector const &getP() const {
-        return p;
-    }
-
-    void setP(Vector const &p) {
-        Plane::p = p;
-    }
 
     Vector const &getN() const {
         return n;
     }
 
     void setN(Vector const &n) {
-        Plane::n = n;
+        Rectangle::n = n;
     }
 };
 
@@ -350,7 +366,7 @@ public:
             : Object(material), center(center), radius(radius), height(height), direction(direction) {
     }
 
-    Vector intersect(Ray &ray, Vector &normal) {
+    Intersection intersect(Ray const &ray) {
         // TODO
     }
 
@@ -399,7 +415,7 @@ public:
             : Object(material), focus1(focus1), focus2(focus2), distance(distance) {
     }
 
-    Vector intersect(Ray &ray, Vector &normal) {
+    Intersection intersect(Ray const &ray) {
         // TODO
     }
 
@@ -437,7 +453,7 @@ public:
             : Object(material), plane(plane), focus(focus), height(height) {
     }
 
-    Vector intersect(Ray &ray, Vector &normal) {
+    Intersection intersect(Ray const &ray) {
         // TODO
     }
 
@@ -605,7 +621,17 @@ public:
             }
     }
 
-    // TODO intersectAll
+    Intersection intersectAll(Ray const &ray) {
+        Intersection closest;
+        closest.rayT = FLT_MAX;
+        closest.real = false;
+        for (size_t i = 0; i < objectSize; i++) {
+            Intersection inters = objects[i]->intersect(ray);
+            if (inters.real && inters.rayT < closest.rayT)
+                closest = inters;
+        }
+        return closest;
+    }
 
     void build() {
         // TODO
