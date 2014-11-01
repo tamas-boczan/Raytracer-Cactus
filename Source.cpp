@@ -548,25 +548,17 @@ class Light {
     Color color;
     Vector p;
 
-// var?: lOut, type
 public:
 
     Light() {
     }
 
-    Light(Vector const &p) : p(p) {
+    Light(Color const &color, Vector const &p) : color(color), p(p) {
     }
 
-    Vector getDir() {
-        //TODO
-    }
-
-    Color getRad(Vector x) {
-        //TODO
-    }
-
-    Color const &getColor() const {
-        return color;
+    Color getRad(Vector const &x) {
+        float distance = (x-p).length();
+        return color / pow(distance, 2);
     }
 
     void setColor(Color const &color) {
