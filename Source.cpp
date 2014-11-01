@@ -183,6 +183,12 @@ private:
         Color nevezo   = (n + one) * (n + one) + k * k;
         F0 = szamlalo / nevezo;
     }
+
+    bool isInside(Vector const &n, Vector const &v) {
+        float cosAlpha = -(n * v);
+        return cosAlpha < 0.0;
+    }
+
 public:
     Material() {
     }
@@ -191,18 +197,37 @@ public:
             :n(n), kd(kd), ks(ks), shine(shine), isReflective(isReflective), isRefractive(isRefractive) {
     }
 
-    Color reflRadiance(Vector &l, Vector &n, Vector &v, Color &lIn) {
-        // TODO
+    Color reflRadiance(Vector const &l, Vector const &n, Vector const &v, Color const &lIn) {
+        float cosTheta = n * l;
+        if (cosTheta < 0)
+            return Color(0, 0, 0);
+        Color lRef = lIn * kd * cosTheta;
+        Vector h = (l + v).normalized();
+        float cosDelta = n * h;
+        if (cosDelta < 0.0)
+            return lRef;
+        lRef = lRef + lIn * ks * pow(cosDelta, shine);
+        return lRef;
     }
 
-    Vector reflect(Vector &n, Vector &v) {
+    Vector reflect(Vector const &n, Vector const &v) {
         float cosAlpha = -(n * v);
         return v + n * 2.0 * cosAlpha;
     }
 
-    Vector refract(Vector &n, Vector &v) {
-        // TODO 07.diasor, 10.dia
-        // float = sinAlpha / sinBeta;
+    Vector refract(Vector const &normal, Vector const &V) {
+        Vector N = normal;
+        float cosAlpha = -(N * V);
+        float cn = (n.r + n.g + n.b) / 3;
+        if (isInside(N, V)) {
+            cosAlpha = -cosAlpha;
+            N = -N;
+            cn = 1.0f / cn;
+        }
+        float disc = 1 - (1 - cosAlpha * cosAlpha) / cn /cn;
+        if (disc < 0.0)
+            return V;
+        return V / cn + N * (cosAlpha / cn - sqrt(disc));
     }
 
     Color Fresnel(Vector const &n, Vector const &v) {
