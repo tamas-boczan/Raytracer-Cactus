@@ -150,6 +150,13 @@ struct Color {
     Color operator-(const Color &c) {
         return Color(r - c.r, g - c.g, b - c.b);
     }
+
+    Color operator+=(const Color &c) {
+        r += c.r;
+        g += c.g;
+        b += c.b;
+        return *this;
+    }
 };
 
 const int screenWidth = 600;    // alkalmazás ablak felbontása
@@ -157,6 +164,9 @@ const int screenHeight = 600;
 
 const size_t maxObjectCount = 10;
 const size_t maxLightCount = 3;
+const unsigned recursionMax = 6;
+
+const Color ambient = Color(0.0, 0.0, 0.0);
 
 #define FLT_MAX 10000.0f
 #define NEAR_ZERO 0.0001f
@@ -179,7 +189,17 @@ struct Intersection {
 
 class Material {
 private:
-    Color F0, n, k, ka, kd, ks;
+public:
+    Color const &getKa() const {
+        return ka;
+    }
+
+    void setKa(Color const &ka) {
+        Material::ka = ka;
+    }
+
+private:
+    Color F0, n, k, kd, ka, ks;
     float shine;
     bool isReflective, isRefractive;
 
@@ -199,24 +219,27 @@ public:
     Material() {
     }
 
-    Material(Color const &n, Color const &kd, Color const &ks, float shine, bool isReflective, bool isRefractive)
-            :n(n), kd(kd), ks(ks), shine(shine), isReflective(isReflective), isRefractive(isRefractive) {
+
+    Material(Color const &n, Color const &k, Color const &kd, Color const &ka, Color const &ks, float shine, bool isReflective, bool isRefractive)
+            : n(n), k(k), kd(kd), ka(ka), ks(ks), shine(shine), isReflective(isReflective), isRefractive(isRefractive) {
     }
 
-    Color reflRadiance(Vector const &l, Vector const &n, Vector const &v, Color const &lIn) {
+    Color reflRadiance(Vector const &l, Vector const &n, Vector const &v, Color const &lIn) const {
         float cosTheta = n * l;
-        if (cosTheta < 0)
-            return Color(0, 0, 0);
+        if (cosTheta < 0.0)
+            //return Color(0, 0, 0);
+            cosTheta = 0.0;
         Color lRef = lIn * kd * cosTheta;
         Vector h = (l + v).normalized();
         float cosDelta = n * h;
         if (cosDelta < 0.0)
-            return lRef;
+            // return lRef;
+            cosDelta = 0.0;
         lRef = lRef + lIn * ks * pow(cosDelta, shine);
         return lRef;
     }
 
-    Vector reflect(Vector const &n, Vector const &v) {
+    Vector reflect(Vector const &n, Vector const &v)const {
         float cosAlpha = -(n * v);
         return v + n * 2.0 * cosAlpha;
     }
@@ -237,7 +260,7 @@ public:
     }
 
     Color Fresnel(Vector const &n, Vector const &v) {
-        float cosTheta = (float) ((n*v)*(-1.0));
+        float cosTheta = (n*v)*(-1.0f);
         Color one = Color(1.0, 1.0, 1.0);
         return F0 + (one - F0) * pow((1 - cosTheta), 5);
     }
@@ -488,10 +511,10 @@ class Camera {
 
     Vector getPosOnScreen(unsigned X, unsigned Y) {
         // Az ernyő melyik pontja felel meg egy pixelnek?
-        float screenPosX = (float) (((float)X + 0.5 - screenWidth / 2.0)
-                / ((float) screenWidth / 2.0));
-        float screenPosY = (float) (((float)X + 0.5 - screenWidth / 2.0)
-                / ((float) screenWidth / 2.0));
+        float screenPosX =  (X + 0.5f - screenWidth / 2.0f)
+                / (screenWidth / 2.0f);
+        float screenPosY = (X + 0.5f - screenWidth / 2.0f)
+                / (screenWidth / 2.0f);
 
         // Az ernyő is a világ része, mi a világkoordinátája a pontnak?
         return lookat + (right * screenPosX) + (up * screenPosY);
@@ -596,8 +619,67 @@ class Scene {
     size_t objectSize, lightSize;
     Camera camera;
 
-    Color trace(Ray const &ray, int d) {
-        // TODO
+    Color directIllumination(Ray const &ray, Intersection const &hit) const {
+        Color color = hit.obj->getMaterial().getKa() * ambient;
+        Vector x = hit.pos;
+        Vector N = hit.normal;
+        for (size_t i = 0; i <lightSize; i++) {
+            Ray shadowRay;
+            shadowRay.p0 = x;
+            shadowRay.v = lights[i].getP() - x;
+            Intersection shadowHit = intersectAll(shadowRay);
+            Vector y = shadowHit.pos;
+            if (shadowHit.rayT < 0.0 ||
+                    ((x - y).length() > (x - lights[i].getP()).length())){
+                Vector V = ray.v.normalized() * (-1.0f);
+                Vector L = shadowRay.v.normalized();
+                color += hit.obj->getMaterial().reflRadiance(L, N, V, lights[i].getRad(x));
+            }
+        }
+        return color;
+    }
+
+    Color reflectColor(Intersection const &hit, Ray &const ray, int d) const {
+        Color color(0, 0, 0);
+        Material material = hit.obj->getMaterial();
+        if (material.isIsReflective()) {
+            Ray reflectedRay;
+            reflectedRay.v = material.reflect(hit.normal, ray.v);
+            reflectedRay.p0 = hit.pos;
+            Color Fresnel = material.Fresnel(hit.normal, ray.v);
+            color += Fresnel * trace(reflectedRay, d + 1);
+        }
+        return color;
+    }
+
+    Color refractColor(Intersection const &hit, Ray &const ray, int d) const {
+        Color color(0, 0, 0);
+        Material material = hit.obj->getMaterial();
+
+        if (material.isIsRefractive()) {
+            Ray refractedRay;
+            refractedRay.v = material.refract(hit.normal, ray.v);
+            refractedRay.p0 = hit.pos;
+            Color Fresnel = material.Fresnel(hit.normal, ray.v);
+            Color one = Color (1, 1, 1);
+            color += (one - Fresnel) * trace(refractedRay, d + 1);
+        }
+        return color;
+    }
+
+
+    Color trace(Ray const &ray, int d) const {
+        if (d > recursionMax)
+            return ambient;
+
+        Intersection hit = intersectAll(ray);
+        if (!hit.real)
+            return ambient;
+
+        Color color = directIllumination(ray, hit);
+        color += reflectColor(hit, ray, d);
+        color += refractColor(hit, ray, d);
+        return color;
     }
 
 public:
@@ -621,7 +703,7 @@ public:
             }
     }
 
-    Intersection intersectAll(Ray const &ray) {
+    Intersection intersectAll(Ray const &ray) const {
         Intersection closest;
         closest.rayT = FLT_MAX;
         closest.real = false;
