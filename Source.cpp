@@ -216,12 +216,9 @@ private:
     }
 
 public:
-    Material() {
-    }
-
-
     Material(Color const &n, Color const &k, Color const &kd, Color const &ka, Color const &ks, float shine, bool isReflective, bool isRefractive)
             : n(n), k(k), kd(kd), ka(ka), ks(ks), shine(shine), isReflective(isReflective), isRefractive(isRefractive) {
+        computeF0();
     }
 
     Color reflRadiance(Vector const &l, Vector const &n, Vector const &v, Color const &lIn) const {
@@ -323,7 +320,7 @@ class Object {
 protected:
     Material material;
 public:
-    Object() {
+    Object() : material((Color()), (Color()), (Color()), (Color()), (Color()), 0, false, false) {
     }
 
     Object(Material const &material) : material(material) {
