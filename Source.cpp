@@ -302,6 +302,13 @@ const Material desk(Color(1.5, 1.5, 1.5), Color(0.0, 0.0, 0.0),
         32.0,
         false, false);
 
+const Intersection noIntersection ={
+        Vector(0,0,0),
+        Vector(0,0,0),
+        NULL,
+        -10.0f,
+        false
+};
 
 class Object {
 protected:
@@ -331,28 +338,23 @@ class Plane : public Object {
 public:
 
     Plane(Material const &material, Vector const &p0, Vector const &n)
-            : Object(material), p0(p0), n(n) {
-    }
-
-    Vector const &getP1() const {
-        return p0;
-    }
-
-    void setP1(Vector const &p1) {
-        Plane::p0 = p1;
+            : Object(material), p0(p0), n(n.normalized()) {
     }
 
     Intersection intersect(Ray const &ray) {
-        // TODO
-    }
-
-
-    Vector const &getN() const {
-        return n;
-    }
-
-    void setN(Vector const &n) {
-        Plane::n = n;
+        Intersection i;
+        float disc = n * (ray.v.normalized());
+        if (disc == 0.0)
+            return noIntersection;
+        float t = -1.0f * (n * (ray.p0 - p0)) * (1.0f / disc);
+        if (t > NEAR_ZERO) {
+            i.normal = n;
+            i.rayT = t;
+            i.real = true;
+            i.pos = ray.p0 + (ray.v.normalized() * i.rayT);
+            return i;
+        }
+        return noIntersection;
     }
 };
 
@@ -362,7 +364,7 @@ class Cylinder : public Object {
 
 public:
     Cylinder(Material const &material, Vector const &center, Vector const &direction, float radius, float height)
-            : Object(material), center(center), direction(direction), radius(radius), height(height) {
+            : Object(material), center(center), direction(direction.normalized()), radius(radius), height(height) {
     }
 
     Intersection intersect(Ray const &ray) {
@@ -653,12 +655,10 @@ class Scene {
 
     Color trace(Ray const &ray, int d) const {
         if (d > recursionMax)
-            //return Color(0.0, 0.0, 0.0);
             return worldAmbient;
 
         Intersection hit = intersectAll(ray);
         if (!hit.real)
-            //return Color(1,1,1);
             return ambientSky;
 
         Color color = directIllumination(ray, hit);
@@ -699,7 +699,6 @@ public:
             Intersection inters = objects[i]->intersect(ray);
             if (inters.real && inters.rayT < closest.rayT) {
                 closest = inters;
-                closest.pos = ray.p0 + (ray.v.normalized() * inters.rayT);
                 closest.obj = objects[i];
             }
         }
