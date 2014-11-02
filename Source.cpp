@@ -42,6 +42,7 @@
 //=============================================================================================
 
 #define _USE_MATH_DEFINES
+
 #include <math.h>
 #include <stdlib.h>
 
@@ -49,14 +50,16 @@
 #include <OpenGL/gl.h>                                                                                                                                                                                                            
 #include <OpenGL/glu.h>                                                                                                                                                                                                           
 #include <GLUT/glut.h>                                                                                                                                                                                                            
-#else                                                                                                                                                                                                                             
+#else
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)                                                                                                                                                                       
 #include <windows.h>                                                                                                                                                                                                              
-#endif                                                                                                                                                                                                                            
+#endif
+
 #include <GL/gl.h>                                                                                                                                                                                                                
 #include <GL/glu.h>                                                                                                                                                                                                               
 #include <GL/glut.h>                                                                                                                                                                                                              
-#endif          
+
+#endif
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,7 +93,7 @@ struct Vector {
         return Vector(x + v.x, y + v.y, z + v.z);
     }
 
-    Vector operator-(const Vector &v) const{
+    Vector operator-(const Vector &v) const {
         return Vector(x - v.x, y - v.y, z - v.z);
     }
 
@@ -201,7 +204,7 @@ private:
     void computeF0() {
         Color one = Color(1.0, 1.0, 1.0);
         Color szamlalo = (n - one) * (n - one) + k * k;
-        Color nevezo   = (n + one) * (n + one) + k * k;
+        Color nevezo = (n + one) * (n + one) + k * k;
         F0 = szamlalo / nevezo;
     }
 
@@ -212,7 +215,14 @@ private:
 
 public:
     Material(Color const &n, Color const &k, Color const &kd, Color const &ka, Color const &ks, float shine, bool isReflective, bool isRefractive)
-            : n(n), k(k), diffuse(kd), ambient(ka), specular(ks), shine(shine), reflective(isReflective), refractive(isRefractive) {
+            : n(n),
+              k(k),
+              diffuse(kd),
+              ambient(ka),
+              specular(ks),
+              shine(shine),
+              reflective(isReflective),
+              refractive(isRefractive) {
         computeF0();
     }
 
@@ -224,12 +234,12 @@ public:
         Vector h = (l + v).normalized();
         float cosDelta = n * h;
         if (cosDelta < NEAR_ZERO)
-             cosDelta = 0.0;
+            cosDelta = 0.0;
         lRef = lRef + lIn * specular * pow(cosDelta, shine);
         return lRef;
     }
 
-    Vector reflect(Vector const &n, Vector const &v)const {
+    Vector reflect(Vector const &n, Vector const &v) const {
         float cosAlpha = -(n * v);
         return (v + n * 2.0 * cosAlpha).normalized();
     }
@@ -243,14 +253,14 @@ public:
             N = N * (-1.0f);
             cn = 1.0f / cn;
         }
-        float disc = 1 - (1 - cosAlpha * cosAlpha) / cn /cn;
+        float disc = 1 - (1 - cosAlpha * cosAlpha) / cn / cn;
         if (disc < NEAR_ZERO)
             return V.normalized();
         return (V / cn + N * (cosAlpha / cn - sqrt(disc))).normalized();
     }
 
     Color Fresnel(Vector const &n, Vector const &v) {
-        float cosTheta = (n*v)*(-1.0f);
+        float cosTheta = (n * v) * (-1.0f);
         Color one = Color(1.0, 1.0, 1.0);
         return F0 + (one - F0) * pow((1 - cosTheta), 5);
     }
@@ -291,7 +301,6 @@ const Material desk(Color(1.5, 1.5, 1.5), Color(0.0, 0.0, 0.0),
         Color(0.4, 0.4, 0.4), Color(0.2, 0.2, 0.2), Color(0.1, 0.1, 0.1),
         32.0,
         false, false);
-
 
 
 class Object {
@@ -484,9 +493,9 @@ public:
 private:
     Vector getPosOnScreen(unsigned X, unsigned Y) {
         // Az ernyő melyik pontja felel meg egy pixelnek?
-        float screenPosX =  ((float)X + 0.5f - screenWidth / 2.0f)
+        float screenPosX = ((float) X + 0.5f - screenWidth / 2.0f)
                 / (screenWidth / 2.0f);
-        float screenPosY = ((float)Y + 0.5f - screenHeight / 2.0f)
+        float screenPosY = ((float) Y + 0.5f - screenHeight / 2.0f)
                 / (screenHeight / 2.0f);
 
         // Az ernyő is a világ része, mi a világkoordinátája a pontnak?
@@ -569,7 +578,7 @@ public:
     }
 
     Color getRad(Vector const &x) const {
-        float distance = (x-p).length();
+        float distance = (x - p).length();
         return color / pow(distance, 2) / 10;
     }
 
@@ -597,14 +606,14 @@ class Scene {
         Vector x = hit.pos;
         Vector N = hit.normal.normalized();
 
-        for (size_t i = 0; i <lightSize; i++) {
+        for (size_t i = 0; i < lightSize; i++) {
             Ray shadowRay;
             shadowRay.p0 = x;
             shadowRay.v = (lights[i]->getP() - x).normalized();
             Intersection shadowHit = intersectAll(shadowRay);
             Vector y = shadowHit.pos;
             if (!shadowHit.real ||
-                    ((x - y).length() > (x - lights[i]->getP()).length())){
+                    ((x - y).length() > (x - lights[i]->getP()).length())) {
                 Vector V = ray.v.normalized() * (-1.0f);
                 Vector L = shadowRay.v.normalized();
                 color += hit.obj->getMaterial().reflRadiance(L, N, V, lights[i]->getRad(x));
@@ -635,7 +644,7 @@ class Scene {
             refractedRay.v = material.refract(hit.normal, ray.v);
             refractedRay.p0 = hit.pos;
             Color Fresnel = material.Fresnel(hit.normal, ray.v);
-            Color one = Color (1, 1, 1);
+            Color one = Color(1, 1, 1);
             color += (one - Fresnel) * trace(refractedRay, d + 1);
         }
         return color;
@@ -668,7 +677,7 @@ public:
         objects[objectSize++] = object;
     }
 
-    void add(Light  *light) {
+    void add(Light *light) {
         lights[lightSize++] = light;
     }
 
@@ -707,14 +716,14 @@ public:
         add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), Vector(0.0, 1.0, 0.0), 0.125, 0.6));
 
         // henger mögött
-        add(new Light(Color(17,17,26), Vector(-1.5, 2.0, 3.0)));
+        add(new Light(Color(17, 17, 26), Vector(-1.5, 2.0, 3.0)));
         //henger-lámpa
         //add(new Light(Color(2,2,5), Vector(-1.0, 0.8, 2.0)));
 
         // hengerek találkozásánál
         // add(new Light(Color(2,2,5), Vector(-0.52, 0.1, 2.0)));
         // hiba: teljes visszaverődés?
-         //add(new Light(Color(2,2,5), Vector(-0.50, 0.1, 2.0)));
+        //add(new Light(Color(2,2,5), Vector(-0.50, 0.1, 2.0)));
 
         //add(new Light(Color(20,20,50), Vector(-2.0, 0.0, 2.0)));
 
@@ -727,12 +736,10 @@ public:
         Vector up = (dir % right).normalized();
         */
 
-
-
         // döntve
-        Vector lookat = Vector (0, 0.9, 0);
+        Vector lookat = Vector(0, 0.9, 0);
         Vector eye = Vector(0, 1.5, -0.7);
-        Vector right = Vector (1, 0, 0);
+        Vector right = Vector(1, 0, 0);
         Vector dir = (lookat - eye).normalized();
         Vector up = (dir % right).normalized();
 
@@ -754,7 +761,7 @@ void onDisplay() {
 //    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
 
     glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, image);
-    glutSwapBuffers();     				// Buffercsere: rajzolas vege
+    glutSwapBuffers();                    // Buffercsere: rajzolas vege
 
 }
 
@@ -789,31 +796,31 @@ void onIdle() {
 
 // A C++ program belepesi pontja, a main fuggvenyt mar nem szabad bantani
 int main(int argc, char **argv) {
-    glutInit(&argc, argv); 				// GLUT inicializalasa
-    glutInitWindowSize(600, 600);			// Alkalmazas ablak kezdeti merete 600x600 pixel 
-    glutInitWindowPosition(100, 100);			// Az elozo alkalmazas ablakhoz kepest hol tunik fel
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);	// 8 bites R,G,B,A + dupla buffer + melyseg buffer
+    glutInit(&argc, argv);                // GLUT inicializalasa
+    glutInitWindowSize(600, 600);            // Alkalmazas ablak kezdeti merete 600x600 pixel
+    glutInitWindowPosition(100, 100);            // Az elozo alkalmazas ablakhoz kepest hol tunik fel
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);    // 8 bites R,G,B,A + dupla buffer + melyseg buffer
 
-    glutCreateWindow("Grafika hazi feladat");		// Alkalmazas ablak megszuletik es megjelenik a kepernyon
+    glutCreateWindow("Grafika hazi feladat");        // Alkalmazas ablak megszuletik es megjelenik a kepernyon
 
-    glMatrixMode(GL_MODELVIEW);				// A MODELVIEW transzformaciot egysegmatrixra inicializaljuk
+    glMatrixMode(GL_MODELVIEW);                // A MODELVIEW transzformaciot egysegmatrixra inicializaljuk
     glLoadIdentity();
-    glMatrixMode(GL_PROJECTION);			// A PROJECTION transzformaciot egysegmatrixra inicializaljuk
+    glMatrixMode(GL_PROJECTION);            // A PROJECTION transzformaciot egysegmatrixra inicializaljuk
     glLoadIdentity();
 
-    onInitialization();					// Az altalad irt inicializalast lefuttatjuk
+    onInitialization();                    // Az altalad irt inicializalast lefuttatjuk
 
 
-    glutDisplayFunc(onDisplay);				// Esemenykezelok regisztralasa
-    glutMouseFunc(onMouse); 
+    glutDisplayFunc(onDisplay);                // Esemenykezelok regisztralasa
+    glutMouseFunc(onMouse);
     //glutIdleFunc(onIdle);
     glutKeyboardFunc(onKeyboard);
     glutKeyboardUpFunc(onKeyboardUp);
     glutMotionFunc(onMouseMotion);
 
-    glutMainLoop();					// Esemenykezelo hurok
+    glutMainLoop();                    // Esemenykezelo hurok
 
-    
+
     return 0;
 }
 
