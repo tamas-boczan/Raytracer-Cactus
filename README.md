@@ -6,7 +6,7 @@ Raytracing homework.
 Feladat
 ------------
 Készítsen csendéletet,
-ahol procedurálisan textúrázott, diffúz+Blinn spekuláris **asztalon**
+ahol **procedurálisan textúrázott**, diffúz+Blinn spekuláris **asztalon**
 
 egy **ellipszoid** aranykaktusz,
 

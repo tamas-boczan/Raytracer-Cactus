@@ -78,35 +78,35 @@ struct Vector {
         z = z0;
     }
 
-    Vector operator*(float a) {
+    Vector operator*(float a) const {
         return Vector(x * a, y * a, z * a);
     }
 
-    Vector operator/(float a) {
+    Vector operator/(float a) const {
         return Vector(x / a, y / a, z / a);
     }
 
-    Vector operator+(const Vector &v) {
+    Vector operator+(const Vector &v) const {
         return Vector(x + v.x, y + v.y, z + v.z);
     }
 
-    Vector operator-(const Vector &v) {
+    Vector operator-(const Vector &v) const{
         return Vector(x - v.x, y - v.y, z - v.z);
     }
 
-    float operator*(const Vector &v) {    // dot product
+    float operator*(const Vector &v) const {    // dot product
         return (x * v.x + y * v.y + z * v.z);
     }
 
-    Vector operator%(const Vector &v) {    // cross product
+    Vector operator%(const Vector &v) const {    // cross product
         return Vector(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
     }
 
-    float length() {
+    float length() const {
         return (float) sqrt(x * x + y * y + z * z);
     }
 
-    Vector normalized() {
+    Vector normalized() const {
         return *this / length();
     }
 };
@@ -127,27 +127,27 @@ struct Color {
         b = b0;
     }
 
-    Color operator*(float a) {
+    Color operator*(float a) const {
         return Color(r * a, g * a, b * a);
     }
 
-    Color operator/(float a) {
+    Color operator/(float a) const {
         return Color(r / a, g / a, b / a);
     }
 
-    Color operator*(const Color &c) {
+    Color operator*(const Color &c) const {
         return Color(r * c.r, g * c.g, b * c.b);
     }
 
-    Color operator/(const Color &c) {
+    Color operator/(const Color &c) const {
         return Color(r / c.r, g / c.g, b / c.b);
     }
 
-    Color operator+(const Color &c) {
+    Color operator+(const Color &c) const {
         return Color(r + c.r, g + c.g, b + c.b);
     }
 
-    Color operator-(const Color &c) {
+    Color operator-(const Color &c) const {
         return Color(r - c.r, g - c.g, b - c.b);
     }
 
@@ -166,13 +166,13 @@ const size_t maxObjectCount = 10;
 const size_t maxLightCount = 3;
 const unsigned recursionMax = 6;
 
-const Color ambient = Color(0.0, 0.0, 0.0);
+const Color worldAmbient = Color(0.2, 0.2, 0.2);
+const Color ambientSky = Color(0.3, 0.5, 0.7);
 
 #define FLT_MAX 10000.0f
-#define NEAR_ZERO 0.0001f
+#define NEAR_ZERO 0.001f
 
 Color image[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
-
 
 
 struct Ray {
@@ -180,28 +180,23 @@ struct Ray {
     Vector v;
 };
 
+class Object;
+
 struct Intersection {
     Vector pos, normal;
-    Object *obj;
+    Object const *obj;
     float rayT;
     bool real;
 };
 
 class Material {
+// TODO texture
 private:
-public:
-    Color const &getKa() const {
-        return ka;
-    }
-
-    void setKa(Color const &ka) {
-        Material::ka = ka;
-    }
-
-private:
-    Color F0, n, k, kd, ka, ks;
+    Color F0,
+            n, k,
+            diffuse, ambient, specular;
     float shine;
-    bool isReflective, isRefractive;
+    bool reflective, refractive;
 
     void computeF0() {
         Color one = Color(1.0, 1.0, 1.0);
@@ -212,48 +207,46 @@ private:
 
     bool isInside(Vector const &n, Vector const &v) {
         float cosAlpha = -(n * v);
-        return cosAlpha < 0.0;
+        return cosAlpha < NEAR_ZERO;
     }
 
 public:
     Material(Color const &n, Color const &k, Color const &kd, Color const &ka, Color const &ks, float shine, bool isReflective, bool isRefractive)
-            : n(n), k(k), kd(kd), ka(ka), ks(ks), shine(shine), isReflective(isReflective), isRefractive(isRefractive) {
+            : n(n), k(k), diffuse(kd), ambient(ka), specular(ks), shine(shine), reflective(isReflective), refractive(isRefractive) {
         computeF0();
     }
 
     Color reflRadiance(Vector const &l, Vector const &n, Vector const &v, Color const &lIn) const {
         float cosTheta = n * l;
-        if (cosTheta < 0.0)
-            //return Color(0, 0, 0);
+        if (cosTheta < NEAR_ZERO)
             cosTheta = 0.0;
-        Color lRef = lIn * kd * cosTheta;
+        Color lRef = lIn * diffuse * cosTheta;
         Vector h = (l + v).normalized();
         float cosDelta = n * h;
-        if (cosDelta < 0.0)
-            // return lRef;
-            cosDelta = 0.0;
-        lRef = lRef + lIn * ks * pow(cosDelta, shine);
+        if (cosDelta < NEAR_ZERO)
+             cosDelta = 0.0;
+        lRef = lRef + lIn * specular * pow(cosDelta, shine);
         return lRef;
     }
 
     Vector reflect(Vector const &n, Vector const &v)const {
         float cosAlpha = -(n * v);
-        return v + n * 2.0 * cosAlpha;
+        return (v + n * 2.0 * cosAlpha).normalized();
     }
 
     Vector refract(Vector const &normal, Vector const &V) {
-        Vector N = normal;
+        Vector N = normal.normalized();
         float cosAlpha = -(N * V);
         float cn = (n.r + n.g + n.b) / 3;
         if (isInside(N, V)) {
             cosAlpha = -cosAlpha;
-            N = -N;
+            N = N * (-1.0f);
             cn = 1.0f / cn;
         }
         float disc = 1 - (1 - cosAlpha * cosAlpha) / cn /cn;
-        if (disc < 0.0)
-            return V;
-        return V / cn + N * (cosAlpha / cn - sqrt(disc));
+        if (disc < NEAR_ZERO)
+            return V.normalized();
+        return (V / cn + N * (cosAlpha / cn - sqrt(disc))).normalized();
     }
 
     Color Fresnel(Vector const &n, Vector const &v) {
@@ -262,59 +255,44 @@ public:
         return F0 + (one - F0) * pow((1 - cosTheta), 5);
     }
 
-
-    Color const &getF0() const {
-        return F0;
-    }
-
-    Color const &getN() const {
-        return n;
-    }
-
-    void setN(Color const &n) {
-        Material::n = n;
-    }
-
-    Color const &getKd() const {
-        return kd;
-    }
-
-    void setKd(Color const &kd) {
-        Material::kd = kd;
-    }
-
-    Color const &getKs() const {
-        return ks;
-    }
-
-    void setKs(Color const &ks) {
-        Material::ks = ks;
-    }
-
-    float getShine() const {
-        return shine;
-    }
-
-    void setShine(float shine) {
-        Material::shine = shine;
+    Color const &getAmbient() const {
+        return ambient;
     }
 
     bool isIsReflective() const {
-        return isReflective;
-    }
-
-    void setIsReflective(bool isReflective) {
-        Material::isReflective = isReflective;
+        return reflective;
     }
 
     bool isIsRefractive() const {
-        return isRefractive;
-    }
-
-    void setIsRefractive(bool isRefractive) {
-        Material::isRefractive = isRefractive;
+        return refractive;
     }
 };
+
+// Forrás: http://www.nicoptere.net/dump/materials.html
+const Material gold(Color(0.17, 0.35, 1.5), Color(3.1, 2.7, 1.9),
+        Color(0.75, 0.61, 0.23), Color(0.25, 0.20, 0.07), Color(0.63, 0.56, 0.37),
+        51.2,
+        true, false);
+
+// Forrás: http://www.nicoptere.net/dump/materials.html
+const Material silver(Color(0.14, 0.16, 0.13), Color(4.1, 2.3, 3.1),
+        Color(0.51, 0.51, 0.51), Color(0.19, 0.19, 0.19), Color(0.51, 0.51, 0.51),
+        51.2,
+        true, false);
+
+// Forrás: http://globe3d.sourceforge.net/g3d_html/gl-materials__ads.htm
+const Material glass(Color(1.5, 1.5, 1.5), Color(0.0, 0.0, 0.0),
+        Color(0.59, 0.67, 0.73), Color(0.0, 0.0, 0.0), Color(0.9, 0.9, 0.9),
+        96.0,
+        true, true);
+
+
+const Material desk(Color(1.5, 1.5, 1.5), Color(0.0, 0.0, 0.0),
+        Color(0.4, 0.4, 0.4), Color(0.2, 0.2, 0.2), Color(0.1, 0.1, 0.1),
+        32.0,
+        false, false);
+
+
 
 class Object {
 protected:
@@ -338,29 +316,21 @@ public:
 
 };
 
-class Rectangle : Object {
-    Vector p1, p2, n;
+class Plane : public Object {
+    Vector p0, n;
 
 public:
 
-    Rectangle(Material const &material, Vector const &p1, Vector const &p2, Vector const &n)
-            : Object(material), p1(p1), p2(p2), n(n) {
+    Plane(Material const &material, Vector const &p0, Vector const &n)
+            : Object(material), p0(p0), n(n) {
     }
 
     Vector const &getP1() const {
-        return p1;
+        return p0;
     }
 
     void setP1(Vector const &p1) {
-        Rectangle::p1 = p1;
-    }
-
-    Vector const &getP2() const {
-        return p2;
-    }
-
-    void setP2(Vector const &p2) {
-        Rectangle::p2 = p2;
+        Plane::p0 = p1;
     }
 
     Intersection intersect(Ray const &ray) {
@@ -373,17 +343,17 @@ public:
     }
 
     void setN(Vector const &n) {
-        Rectangle::n = n;
+        Plane::n = n;
     }
 };
 
-class Cylinder : Object {
+class Cylinder : public Object {
     Vector center, direction;
     float radius, height;
 
 public:
-    Cylinder(Material const &material, Vector const &center, float radius, float height, Vector const &direction)
-            : Object(material), center(center), radius(radius), height(height), direction(direction) {
+    Cylinder(Material const &material, Vector const &center, Vector const &direction, float radius, float height)
+            : Object(material), center(center), direction(direction), radius(radius), height(height) {
     }
 
     Intersection intersect(Ray const &ray) {
@@ -424,7 +394,7 @@ public:
 
 };
 
-class Ellipsoid : Object {
+class Ellipsoid : public Object {
     Vector focus1;
     Vector focus2;
     float distance;
@@ -502,16 +472,22 @@ public:
     }
 };
 
+
 class Camera {
     Vector eye, lookat, up, right;
     float width, height;
 
+public:
+    Camera() {
+    }
+
+private:
     Vector getPosOnScreen(unsigned X, unsigned Y) {
         // Az ernyő melyik pontja felel meg egy pixelnek?
-        float screenPosX =  (X + 0.5f - screenWidth / 2.0f)
+        float screenPosX =  ((float)X + 0.5f - screenWidth / 2.0f)
                 / (screenWidth / 2.0f);
-        float screenPosY = (X + 0.5f - screenWidth / 2.0f)
-                / (screenWidth / 2.0f);
+        float screenPosY = ((float)Y + 0.5f - screenHeight / 2.0f)
+                / (screenHeight / 2.0f);
 
         // Az ernyő is a világ része, mi a világkoordinátája a pontnak?
         return lookat + (right * screenPosX) + (up * screenPosY);
@@ -525,11 +501,11 @@ public:
     Ray getRay(unsigned X, unsigned Y) {
         Ray r;
         Vector posOnScreen = getPosOnScreen(X, Y);
-        Vector direction = (posOnScreen - eye).normalized();
-        r.p0 = posOnScreen;
-        r.v = direction;
+        r.p0 = eye;
+        r.v = (posOnScreen - eye).normalized();
         return r;
     }
+
 
     Vector const &getEye() const {
         return eye;
@@ -592,9 +568,9 @@ public:
     Light(Color const &color, Vector const &p) : color(color), p(p) {
     }
 
-    Color getRad(Vector const &x) {
+    Color getRad(Vector const &x) const {
         float distance = (x-p).length();
-        return color / pow(distance, 2);
+        return color / pow(distance, 2) / 10;
     }
 
     void setColor(Color const &color) {
@@ -612,31 +588,32 @@ public:
 
 class Scene {
     Object *objects[maxObjectCount];
-    Light lights[maxLightCount];
+    Light *lights[maxLightCount];
     size_t objectSize, lightSize;
-    Camera camera;
+    Camera *camera;
 
     Color directIllumination(Ray const &ray, Intersection const &hit) const {
-        Color color = hit.obj->getMaterial().getKa() * ambient;
+        Color color = hit.obj->getMaterial().getAmbient() * worldAmbient;
         Vector x = hit.pos;
-        Vector N = hit.normal;
+        Vector N = hit.normal.normalized();
+
         for (size_t i = 0; i <lightSize; i++) {
             Ray shadowRay;
             shadowRay.p0 = x;
-            shadowRay.v = lights[i].getP() - x;
+            shadowRay.v = (lights[i]->getP() - x).normalized();
             Intersection shadowHit = intersectAll(shadowRay);
             Vector y = shadowHit.pos;
-            if (shadowHit.rayT < 0.0 ||
-                    ((x - y).length() > (x - lights[i].getP()).length())){
+            if (!shadowHit.real ||
+                    ((x - y).length() > (x - lights[i]->getP()).length())){
                 Vector V = ray.v.normalized() * (-1.0f);
                 Vector L = shadowRay.v.normalized();
-                color += hit.obj->getMaterial().reflRadiance(L, N, V, lights[i].getRad(x));
+                color += hit.obj->getMaterial().reflRadiance(L, N, V, lights[i]->getRad(x));
             }
         }
         return color;
     }
 
-    Color reflectColor(Intersection const &hit, Ray &const ray, int d) const {
+    Color reflectColor(Intersection const &hit, Ray const &ray, int d) const {
         Color color(0, 0, 0);
         Material material = hit.obj->getMaterial();
         if (material.isIsReflective()) {
@@ -649,7 +626,7 @@ class Scene {
         return color;
     }
 
-    Color refractColor(Intersection const &hit, Ray &const ray, int d) const {
+    Color refractColor(Intersection const &hit, Ray const &ray, int d) const {
         Color color(0, 0, 0);
         Material material = hit.obj->getMaterial();
 
@@ -667,11 +644,13 @@ class Scene {
 
     Color trace(Ray const &ray, int d) const {
         if (d > recursionMax)
-            return ambient;
+            //return Color(0.0, 0.0, 0.0);
+            return worldAmbient;
 
         Intersection hit = intersectAll(ray);
         if (!hit.real)
-            return ambient;
+            //return Color(1,1,1);
+            return ambientSky;
 
         Color color = directIllumination(ray, hit);
         color += reflectColor(hit, ray, d);
@@ -680,7 +659,8 @@ class Scene {
     }
 
 public:
-    Scene(Camera const &camera) : camera(camera) {
+
+    Scene() {
         objectSize = lightSize = 0;
     }
 
@@ -688,15 +668,17 @@ public:
         objects[objectSize++] = object;
     }
 
-    void add(Light const &light) {
+    void add(Light  *light) {
         lights[lightSize++] = light;
     }
 
     void render() {
         for (size_t Y = 0; Y < screenHeight; Y++)
             for (size_t X = 0; X < screenWidth; X++) {
-                Ray ray = camera.getRay(X, Y);
-                image[Y * screenWidth + X] = trace(ray, 0);
+                Ray ray = camera->getRay(X, Y);
+                Color color = trace(ray, 0);
+                // TODO: tone Mapping
+                image[Y * screenWidth + X] = color;
             }
     }
 
@@ -706,48 +688,73 @@ public:
         closest.real = false;
         for (size_t i = 0; i < objectSize; i++) {
             Intersection inters = objects[i]->intersect(ray);
-            if (inters.real && inters.rayT < closest.rayT)
+            if (inters.real && inters.rayT < closest.rayT) {
                 closest = inters;
+                closest.pos = ray.p0 + (ray.v.normalized() * inters.rayT);
+                closest.obj = objects[i];
+            }
         }
         return closest;
     }
 
     void build() {
         // TODO
+        add(new Plane(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0)));
+
+        // henger-kaktusz
+        add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), Vector(0.0, 1.0, 0.0), 0.5, 2.0));
+        add(new Cylinder(glass, Vector(-0.6, 0.1, 2.0), Vector(1.0, 0.0, 0.0), 0.23, 0.9));
+        add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), Vector(0.0, 1.0, 0.0), 0.125, 0.6));
+
+        // henger mögött
+        add(new Light(Color(17,17,26), Vector(-1.5, 2.0, 3.0)));
+        //henger-lámpa
+        //add(new Light(Color(2,2,5), Vector(-1.0, 0.8, 2.0)));
+
+        // hengerek találkozásánál
+        // add(new Light(Color(2,2,5), Vector(-0.52, 0.1, 2.0)));
+        // hiba: teljes visszaverődés?
+         //add(new Light(Color(2,2,5), Vector(-0.50, 0.1, 2.0)));
+
+        //add(new Light(Color(20,20,50), Vector(-2.0, 0.0, 2.0)));
+
+        // középen
+        /*
+        Vector lookat = Vector (0,0,0);
+        Vector eye = Vector(0, 0, -1);
+        Vector right = Vector (1, 0, 0);
+        Vector dir = (lookat - eye).normalized();
+        Vector up = (dir % right).normalized();
+        */
+
+
+
+        // döntve
+        Vector lookat = Vector (0, 0.9, 0);
+        Vector eye = Vector(0, 1.5, -0.7);
+        Vector right = Vector (1, 0, 0);
+        Vector dir = (lookat - eye).normalized();
+        Vector up = (dir % right).normalized();
+
+
+        camera = new Camera(eye, lookat, up, right, screenWidth, screenHeight);
     }
-};
+} scene;
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization() {
     glViewport(0, 0, screenWidth, screenHeight);
-
-    // Peldakent keszitunk egy kepet az operativ memoriaba
-    for (int Y = 0; Y < screenHeight; Y++)
-        for (int X = 0; X < screenWidth; X++)
-            image[Y * screenWidth + X] = Color((float) X / screenWidth, (float) Y / screenHeight, 0);
-
+    scene.build();
+    scene.render();
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
 void onDisplay() {
-    glClearColor(0.1f, 0.2f, 0.3f, 1.0f);        // torlesi szin beallitasa
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
+//    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);		// torlesi szin beallitasa
+//    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
 
-    // ..
-
-    // Peldakent atmasoljuk a kepet a rasztertarba
     glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, image);
-    // Majd rajzolunk egy kek haromszoget
-    glColor3f(0, 0, 1);
-    glBegin(GL_TRIANGLES);
-    glVertex2f(-0.2f, -0.2f);
-    glVertex2f(0.2f, -0.2f);
-    glVertex2f(0.0f, 0.2f);
-    glEnd();
-
-    // ...
-
-    glutSwapBuffers();                    // Buffercsere: rajzolas vege
+    glutSwapBuffers();     				// Buffercsere: rajzolas vege
 
 }
 
@@ -775,8 +782,6 @@ void onMouseMotion(int x, int y) {
 
 // `Idle' esemenykezelo, jelzi, hogy az ido telik, az Idle esemenyek frekvenciajara csak a 0 a garantalt minimalis ertek
 void onIdle() {
-    long time = glutGet(GLUT_ELAPSED_TIME);        // program inditasa ota eltelt ido
-
 }
 
 // ...Idaig modosithatod
@@ -798,14 +803,16 @@ int main(int argc, char **argv) {
 
     onInitialization();					// Az altalad irt inicializalast lefuttatjuk
 
+
     glutDisplayFunc(onDisplay);				// Esemenykezelok regisztralasa
     glutMouseFunc(onMouse); 
-    glutIdleFunc(onIdle);
+    //glutIdleFunc(onIdle);
     glutKeyboardFunc(onKeyboard);
     glutKeyboardUpFunc(onKeyboardUp);
     glutMotionFunc(onMouseMotion);
 
     glutMainLoop();					// Esemenykezelo hurok
+
     
     return 0;
 }
