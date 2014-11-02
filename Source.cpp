@@ -332,27 +332,32 @@ public:
 
 };
 
-class Plane : public Object {
-    Vector p0, n;
+class Circle : public Object {
+    Vector center, normal;
+    float radius;
 
 public:
 
-    Plane(Material const &material, Vector const &p0, Vector const &n)
-            : Object(material), p0(p0), n(n.normalized()) {
+    Circle(Material const &material, Vector const &p0, Vector const &n, float const &radius)
+            : Object(material), center(p0), normal(n.normalized()), radius(radius) {
     }
 
     Intersection intersect(Ray const &ray) {
         Intersection i;
-        float disc = n * (ray.v.normalized());
+        float disc = normal * (ray.v.normalized());
         if (disc == 0.0)
             return noIntersection;
-        float t = -1.0f * (n * (ray.p0 - p0)) * (1.0f / disc);
+        float t = -1.0f * (normal * (ray.p0 - center)) * (1.0f / disc);
         if (t > NEAR_ZERO) {
-            i.normal = n;
-            i.rayT = t;
-            i.real = true;
-            i.pos = ray.p0 + (ray.v.normalized() * i.rayT);
-            return i;
+            Vector intersectPos = ray.p0 + (ray.v.normalized() * t);
+            if ((intersectPos - center).length() <= radius)
+            {
+                i.real = true;
+                i.normal = normal;
+                i.rayT = t;
+                i.pos = intersectPos;
+                return i;
+            }
         }
         return noIntersection;
     }
@@ -707,7 +712,7 @@ public:
 
     void build() {
         // TODO
-        add(new Plane(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0)));
+        add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 3.0));
 
         // henger-kaktusz
         add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), Vector(0.0, 1.0, 0.0), 0.5, 2.0));
