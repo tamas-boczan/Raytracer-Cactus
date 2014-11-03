@@ -854,6 +854,13 @@ public:
 
         osszeg = osszeg * 2;
         osszeg.getColumnsFilled();
+        Matrix4D D(
+                3,  4,  5, -1,
+                -7,  9,  3,  0,
+                10,  1,  4,  2,
+                9,  3,  2,  1
+        );
+        D.getRowsFilled();
     }
 
     void build() {
