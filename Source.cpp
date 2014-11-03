@@ -162,6 +162,122 @@ struct Color {
     }
 };
 
+class Matrix4D {
+    float mx[4][4];
+    size_t rowsFilled;
+    size_t columnsFilled;
+
+private:
+    size_t max (size_t v1, size_t v2) const {
+        return v1 > v2 ? v1 : v2;
+    }
+
+public:
+    Matrix4D() {
+        allZero();
+        rowsFilled = 0;
+        columnsFilled = 0;
+    }
+
+    Matrix4D(
+            float f00, float f01, float f02, float f03,
+            float f10, float f11, float f12, float f13,
+            float f20, float f21, float f22, float f23,
+            float f30, float f31, float f32, float f33)
+    {
+        addRow(f00, f01, f02, f03);
+        addRow(f10, f11, f12, f13);
+        addRow(f20, f21, f22, f23);
+        addRow(f30, f31, f32, f33);
+    }
+
+    void allZero() {
+        for (size_t i = 0; i < 4; i++)
+            for (size_t j = 0; j < 4; j++)
+                mx[i][j] = 0.0f;
+    }
+
+    void addRow (float v0, float v1, float v2, float v3) {
+        mx[rowsFilled][0] = v0;
+        mx[rowsFilled][1] = v1;
+        mx[rowsFilled][2] = v2;
+        mx[rowsFilled][3] = v3;
+        rowsFilled++;
+        columnsFilled = 4;
+    }
+
+    void addColumn (float v0, float v1, float v2, float v3) {
+        mx[0][columnsFilled] = v0;
+        mx[1][columnsFilled] = v1;
+        mx[2][columnsFilled] = v2;
+        mx[3][columnsFilled] = v3;
+        columnsFilled++;
+        rowsFilled = 4;
+    }
+
+    Matrix4D transzponalt() {
+        Matrix4D t;
+        for (size_t i = 0; i < rowsFilled; i++)
+            t.addColumn(mx[i][0], mx[i][1], mx[i][2], mx[i][3]);
+        t.rowsFilled = columnsFilled;
+        t.columnsFilled = rowsFilled;
+        return t;
+    }
+
+    Matrix4D operator+(const Matrix4D &m) const {
+        Matrix4D sum;
+        if (columnsFilled == m.columnsFilled && rowsFilled == m.rowsFilled) {
+            sum.rowsFilled = rowsFilled;
+            sum.columnsFilled = columnsFilled;
+            for (size_t i = 0; i < rowsFilled; i++)
+                for (size_t j = 0; j < columnsFilled; j++)
+                    sum.mx[i][j] = mx[i][j] + m.mx[i][j];
+        }
+
+        return sum;
+    }
+
+    Matrix4D operator*(float f) const {
+        Matrix4D result;
+        result.rowsFilled = rowsFilled;
+        result.columnsFilled = columnsFilled;
+        for (size_t i = 0; i < result.rowsFilled; i++)
+            for (size_t j = 0; j < result.columnsFilled; j++)
+                result.mx[i][j] = mx[i][j] * f;
+        return result;
+    }
+
+    Matrix4D operator*(const Matrix4D &right) const {
+        Matrix4D result;
+        if (columnsFilled == right.rowsFilled) {
+            result.rowsFilled = rowsFilled;
+            result.columnsFilled = right.columnsFilled;
+            for (size_t i = 0; i < result.rowsFilled; i++)
+                for (size_t j = 0; j < result.columnsFilled; j++)
+                    for (size_t k = 0; k < columnsFilled; k++)
+                        result.mx[i][j] += (mx[i][k] * right.mx[k][j]);
+        }
+        return result;
+    }
+
+
+    float* getRow(size_t i) {
+        return mx[i];
+    }
+
+    float get(size_t i, size_t j) const {
+        return mx[i][j];
+    }
+
+    size_t getRowsFilled() const {
+        return rowsFilled;
+    }
+
+    size_t getColumnsFilled() const {
+        return columnsFilled;
+    }
+};
+
 const int screenWidth = 600;    // alkalmazás ablak felbontása
 const int screenHeight = 600;
 
@@ -488,7 +604,6 @@ public:
     }
 };
 
-
 class Camera {
     Vector eye, lookat, up, right;
     float width, height;
@@ -657,7 +772,6 @@ class Scene {
         return color;
     }
 
-
     Color trace(Ray const &ray, int d) const {
         if (d > recursionMax)
             return worldAmbient;
@@ -710,7 +824,42 @@ public:
         return closest;
     }
 
+    void testMatrix() {
+        // {{6, -7, 10, 12}, {0, 3, -1, 8}, {0, 5, -7, -5}} * {{3, 4}, {-7, 9},{10, 1}, {0, 2}}
+        Matrix4D A, B;
+        // if (columnsFilled == right.rowsFilled)
+        A.addRow(6, -7, 10, 12);
+        A.addRow(0, 3, -1, 8);
+        A.addRow(0, 5, -7, -5);
+
+        B.addColumn(3, -7, 10, 0);
+        B.addColumn(4, 9, 1, 2);
+
+        Matrix4D szorzat = A * B;
+        // legyen:
+        /*
+        (167 | -5
+        -31 | 42
+        -105 | 28)
+         */
+
+
+        Matrix4D C;
+        C.addRow(3, 4, 5, -1);
+        C.addRow(-7, 9, 3, 0);
+        C.addRow(10, 1, 4, 2);
+        Matrix4D osszeg = A + C;
+        szorzat.transzponalt();
+        float *row = osszeg.getRow(2);
+        size_t rowSize = osszeg.getColumnsFilled();
+        osszeg.get(2, 3);
+
+        osszeg = osszeg * 2;
+        osszeg.getColumnsFilled();
+    }
+
     void build() {
+        testMatrix();
         // TODO
         add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 3.0));
 
