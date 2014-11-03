@@ -168,7 +168,7 @@ class Matrix4D {
     size_t columnsFilled;
 
 private:
-    size_t max (size_t v1, size_t v2) const {
+    size_t max(size_t v1, size_t v2) const {
         return v1 > v2 ? v1 : v2;
     }
 
@@ -183,8 +183,7 @@ public:
             float f00, float f01, float f02, float f03,
             float f10, float f11, float f12, float f13,
             float f20, float f21, float f22, float f23,
-            float f30, float f31, float f32, float f33)
-    {
+            float f30, float f31, float f32, float f33) {
         addRow(f00, f01, f02, f03);
         addRow(f10, f11, f12, f13);
         addRow(f20, f21, f22, f23);
@@ -197,7 +196,7 @@ public:
                 mx[i][j] = 0.0f;
     }
 
-    void addRow (float v0, float v1, float v2, float v3) {
+    void addRow(float v0, float v1, float v2, float v3) {
         mx[rowsFilled][0] = v0;
         mx[rowsFilled][1] = v1;
         mx[rowsFilled][2] = v2;
@@ -206,7 +205,7 @@ public:
         columnsFilled = 4;
     }
 
-    void addColumn (float v0, float v1, float v2, float v3) {
+    void addColumn(float v0, float v1, float v2, float v3) {
         mx[0][columnsFilled] = v0;
         mx[1][columnsFilled] = v1;
         mx[2][columnsFilled] = v2;
@@ -261,7 +260,7 @@ public:
     }
 
 
-    float* getRow(size_t i) {
+    float *getRow(size_t i) {
         return mx[i];
     }
 
@@ -418,9 +417,9 @@ const Material desk(Color(1.5, 1.5, 1.5), Color(0.0, 0.0, 0.0),
         32.0,
         false, false);
 
-const Intersection noIntersection ={
-        Vector(0,0,0),
-        Vector(0,0,0),
+const Intersection noIntersection = {
+        Vector(0, 0, 0),
+        Vector(0, 0, 0),
         NULL,
         -10.0f,
         false
@@ -466,8 +465,7 @@ public:
         float t = -1.0f * (normal * (ray.p0 - center)) * (1.0f / disc);
         if (t > NEAR_ZERO) {
             Vector intersectPos = ray.p0 + (ray.v.normalized() * t);
-            if ((intersectPos - center).length() <= radius)
-            {
+            if ((intersectPos - center).length() <= radius) {
                 i.real = true;
                 i.normal = normal;
                 i.rayT = t;
