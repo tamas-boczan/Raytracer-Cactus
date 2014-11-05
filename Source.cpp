@@ -112,6 +112,13 @@ struct Vector {
     Vector normalized() const {
         return *this / length();
     }
+
+    Vector operator*=(float a) {
+        x *= a;
+        y *= a;
+        z *= a;
+        return *this;
+    }
 };
 
 //--------------------------------------------------------
@@ -160,6 +167,13 @@ struct Color {
         b += c.b;
         return *this;
     }
+
+    Color operator*=(const Color &c) {
+        r *= c.r;
+        g *= c.g;
+        b *= c.b;
+        return *this;
+    }
 };
 
 class Matrix4D {
@@ -184,6 +198,8 @@ public:
             float f10, float f11, float f12, float f13,
             float f20, float f21, float f22, float f23,
             float f30, float f31, float f32, float f33) {
+        rowsFilled = 0;
+        columnsFilled = 0;
         addRow(f00, f01, f02, f03);
         addRow(f10, f11, f12, f13);
         addRow(f20, f21, f22, f23);
@@ -214,7 +230,7 @@ public:
         rowsFilled = 4;
     }
 
-    Matrix4D transzponalt() {
+    Matrix4D transposed() {
         Matrix4D t;
         for (size_t i = 0; i < rowsFilled; i++)
             t.addColumn(mx[i][0], mx[i][1], mx[i][2], mx[i][3]);
@@ -308,7 +324,6 @@ struct Intersection {
 };
 
 class Material {
-// TODO texture
 private:
     Color F0,
             n, k,
@@ -445,7 +460,123 @@ public:
 
     virtual Intersection intersect(Ray const &ray) = 0;
 
+    virtual Color getTextureModifier(Vector const &at) const {
+        return Color(1.0, 1.0, 1.0);
+    }
+
 };
+
+float min(float f1, float f2) {
+    return f1 < f2 ? f1 : f2;
+}
+
+class QuadraticObject : public Object {
+    Matrix4D Q;
+
+    Matrix4D getColumnVector(float x, float y, float z) {
+        Matrix4D v;
+        v.addColumn(x, y, z, 0.0f);
+        return v;
+    }
+
+    bool solveQuadraticEquation(float a, float b, float c, float *x1, float *x2) {
+        float disc = (float) pow(b, 2.0f) - (4.0f * a * c);
+        if (disc < 0.0f || a == 0.0f)
+            return false;
+        *x1 = (-b - (float) sqrt(disc)) / (2.0f * a);
+        *x2 = (-b + (float) sqrt(disc)) / (2.0f * a);
+        return true;
+    }
+
+    float gradX(Vector const &v) {
+        Matrix4D dir;
+        dir.addRow(1, 0, 0, 0);
+        Matrix4D point;
+        point.addColumn(v.x, v.y, v.z, 1);
+
+        Matrix4D normalM = (dir * Q * point) + (point.transposed() * Q * dir.transposed());
+        return normalM.get(0, 0);
+    }
+
+    float gradY(Vector const &v) {
+        Matrix4D dir;
+        dir.addRow(0, 1, 0, 0);
+        Matrix4D point;
+        point.addColumn(v.x, v.y, v.z, 1);
+
+        Matrix4D normalM = (dir * Q * point) + (point.transposed() * Q * dir.transposed());
+        return normalM.get(0, 0);
+    }
+
+    float gradZ(Vector const &v) {
+        Matrix4D dir;
+        dir.addRow(0, 0, 1, 0);
+        Matrix4D point;
+        point.addColumn(v.x, v.y, v.z, 1);
+
+        Matrix4D normalM = (dir * Q * point) + (point.transposed() * Q * dir.transposed());
+        return normalM.get(0, 0);
+    }
+
+public:
+
+    QuadraticObject(Material const &material, float a = 0.0f, float b = 0.0f, float c = 0.0f, float d = 0.0f, float e = 0.0f, float f = 0.0f, float g = 0.0f, float h = 0.0f, float i = 0.0f, float j = 0.0f)
+            : Object(material) {
+        Q = Matrix4D(
+                a, b, c, d,
+                b, e, f, g,
+                c, f, h, i,
+                d, g, i, j
+        );
+    }
+
+    Vector getNormal(Vector const &intersectPoint) {
+        float x = gradX(intersectPoint);
+        float y = gradY(intersectPoint);
+        float z = gradZ(intersectPoint);
+        return Vector(x, y, z).normalized();
+    }
+
+    Intersection intersect(Ray const &ray) {
+        Matrix4D p, v;
+        p.addRow(ray.p0.x, ray.p0.y, ray.p0.z, 1.0);
+        v.addRow(ray.v.x, ray.v.y, ray.v.z, 0.0);
+
+        Matrix4D aM = v * Q * v.transposed();
+        Matrix4D bM = v * Q * p.transposed() * 2.0f;
+        Matrix4D cM = p * Q * p.transposed();
+
+        float a = aM.get(0, 0);
+        float b = bM.get(0, 0);
+        float c = cM.get(0, 0);
+
+        float x1, x2;
+        bool valid = solveQuadraticEquation(a, b, c, &x1, &x2);
+        if (!valid)
+            return noIntersection;
+
+        float x = min(x1, x2);
+        // TODO vágás
+        if (x > NEAR_ZERO) {
+            Intersection i;
+            i.real = true;
+            i.rayT = x;
+            i.pos = ray.p0 + (ray.v.normalized() * x);
+            i.normal = getNormal(i.pos);
+            return i;
+        }
+        return noIntersection;
+    }
+
+};
+
+class Sphere : public QuadraticObject {
+public:
+    Sphere(Material const &material)
+            : QuadraticObject(material, 1, 0, 0, 0, 1, 0, 0, 1, 0, -1) {
+    }
+};
+
 
 class Circle : public Object {
     Vector center, normal;
@@ -474,6 +605,15 @@ public:
             }
         }
         return noIntersection;
+    }
+
+    Color getTextureModifier(Vector const &at) const {
+        float dist = (at - center).length();
+        float stripeWidth = 0.2; //radius / 800.0f;
+        int stripeNr = (int) floorf(dist / stripeWidth);
+        if (stripeNr % 2 == 0)
+            return Color(1.0, 1.0, 1.0);
+        return Color(6.0, 6.0, 6.0);
     }
 };
 
@@ -781,6 +921,7 @@ class Scene {
         Color color = directIllumination(ray, hit);
         color += reflectColor(hit, ray, d);
         color += refractColor(hit, ray, d);
+        color *= hit.obj->getTextureModifier(hit.pos);
         return color;
     }
 
@@ -803,6 +944,7 @@ public:
             for (size_t X = 0; X < screenWidth; X++) {
                 Ray ray = camera->getRay(X, Y);
                 Color color = trace(ray, 0);
+                // color = color/(Color(1,1,1) + color);
                 // TODO: tone Mapping
                 image[Y * screenWidth + X] = color;
             }
@@ -847,7 +989,7 @@ public:
         C.addRow(-7, 9, 3, 0);
         C.addRow(10, 1, 4, 2);
         Matrix4D osszeg = A + C;
-        szorzat.transzponalt();
+        szorzat.transposed();
         float *row = osszeg.getRow(2);
         size_t rowSize = osszeg.getColumnsFilled();
         osszeg.get(2, 3);
@@ -855,18 +997,25 @@ public:
         osszeg = osszeg * 2;
         osszeg.getColumnsFilled();
         Matrix4D D(
-                3,  4,  5, -1,
-                -7,  9,  3,  0,
-                10,  1,  4,  2,
-                9,  3,  2,  1
+                3, 4, 5, -1,
+                -7, 9, 3, 0,
+                10, 1, 4, 2,
+                9, 3, 2, 1
         );
         D.getRowsFilled();
     }
 
     void build() {
         testMatrix();
-        // TODO
+
+        // teszt:
+        add(new Sphere(gold));
+        add(new Light(Color(20, 20, 20), Vector(-1.5, 1.5, 0.0)));
         add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 3.0));
+        // TODO
+
+        //add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 3.0));
+
 
         // henger-kaktusz
         add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), Vector(0.0, 1.0, 0.0), 0.5, 2.0));
@@ -874,7 +1023,7 @@ public:
         add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), Vector(0.0, 1.0, 0.0), 0.125, 0.6));
 
         // henger mögött
-        add(new Light(Color(17, 17, 26), Vector(-1.5, 2.0, 3.0)));
+        //add(new Light(Color(17, 17, 26), Vector(-1.5, 2.0, 3.0)));
         //henger-lámpa
         //add(new Light(Color(2,2,5), Vector(-1.0, 0.8, 2.0)));
 
@@ -886,20 +1035,26 @@ public:
         //add(new Light(Color(20,20,50), Vector(-2.0, 0.0, 2.0)));
 
         // középen
-        /*
-        Vector lookat = Vector (0,0,0);
-        Vector eye = Vector(0, 0, -1);
-        Vector right = Vector (1, 0, 0);
+        Vector lookat = Vector(0, 0, 0);
+        Vector eye = Vector(0, 0, -2);
+        Vector right = Vector(1, 0, 0) * 4.0;
         Vector dir = (lookat - eye).normalized();
-        Vector up = (dir % right).normalized();
-        */
+        Vector up = (dir % right).normalized() * 4.0;
+
+
+
 
         // döntve
+        /*
         Vector lookat = Vector(0, 0.9, 0);
         Vector eye = Vector(0, 1.5, -0.7);
         Vector right = Vector(1, 0, 0);
         Vector dir = (lookat - eye).normalized();
         Vector up = (dir % right).normalized();
+        right *=4.0;
+        up*=4.0;
+        */
+
 
 
         camera = new Camera(eye, lookat, up, right, screenWidth, screenHeight);
@@ -981,4 +1136,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-
