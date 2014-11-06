@@ -469,9 +469,16 @@ float min(float f1, float f2) {
     return f1 < f2 ? f1 : f2;
 }
 
+float max(float f1, float f2) {
+    return f1 > f2 ? f1 : f2;
+}
+
 class QuadricSurface : public Object {
 protected :
     Matrix4D Q;
+    Vector limitFrom;
+    float limit;
+    bool isLimited;
 
     Matrix4D getColumnVector(float x, float y, float z) {
         Matrix4D v;
@@ -551,10 +558,10 @@ protected :
 
     Matrix4D rotationTransformInverse(float angle) {
         return Matrix4D(
-                cosf(angle), sinf(angle), 0.0f, 0.0f,
-                -1.0f * sinf(angle), cosf(angle), 0.0f, 0.0f,
-                0.0f, 0.0f, 1.0f, 0.0f,
-                0.0f, 0.0f, 0.0f, 1.0f
+                cosf(angle),         sinf(angle), 0, 0,
+                -1.0f * sinf(angle), cosf(angle), 0, 0,
+                0,                   0,           1, 0,
+                0,                   0,           0, 1
         );
     }
 
@@ -571,6 +578,44 @@ protected :
         Q = transformWith(rotationInvM);
     }
 
+    Intersection chooseValidIntersection(float x1, float x2, Ray const &ray){
+        float x = min(x1, x2);
+        if (x < NEAR_ZERO)
+            return noIntersection;
+        Intersection i;
+        i.rayT = x;
+        i.pos = ray.p0 + (ray.v.normalized() * i.rayT);
+
+        // a test nem limitált, a kiválaszott X valid
+        if (!isLimited) {
+            i.real = true;
+            i.normal = getNormal(i.pos);
+            return i;
+        }
+
+        // a kiválasztott X a limiten belül van -> valid
+        float size = (i.pos - limitFrom).length();
+        if (size < limit) {
+            i.real = true;
+            i.normal = getNormal(i.pos);
+            return i;
+        }
+
+        // kipróbáljuk a másik X-et is.
+        x = max(x1, x2);
+        i.rayT = x;
+        i.pos = ray.p0 + (ray.v.normalized() * i.rayT);
+        size = (i.pos - limitFrom).length();
+        if (size < limit) {
+            i.real = true;
+            i.normal = getNormal(i.pos);
+            return i;
+        }
+
+        // ez se stimmel
+        return noIntersection;
+    }
+
 public:
     QuadricSurface(Material const &material,
             float a = 0.0f,
@@ -585,8 +630,12 @@ public:
             float j = 0.0f,
             Vector const &stretch = Vector(1.0, 1.0, 1.0),
             Vector const &offset = Vector(0.0, 0.0, 0.0),
-            float angle = 0.0f)
-            : Object(material) {
+            float angle = 0.0f,
+            Vector const &limitFrom = Vector(0.0, 0.0, 0.0),
+            float limit = 0.0,
+            bool isLimited = false
+    )
+            : Object(material), limitFrom(limitFrom), limit(limit), isLimited(isLimited) {
 
         Q = Matrix4D(
                 a, b, c, d,
@@ -615,17 +664,7 @@ public:
         if (!valid)
             return noIntersection;
 
-        float x = min(x1, x2);
-        // TODO vágás
-        if (x > NEAR_ZERO) {
-            Intersection i;
-            i.real = true;
-            i.rayT = x;
-            i.pos = ray.p0 + (ray.v.normalized() * x);
-            i.normal = getNormal(i.pos);
-            return i;
-        }
-        return noIntersection;
+        return chooseValidIntersection(x1, x2, ray);
     }
 
 };
