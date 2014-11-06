@@ -65,6 +65,10 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Innentol modosithatod...
 
+#define FLT_MAX 10000.0f
+#define NEAR_ZERO 0.001f
+#define PI 3.14159265359f
+
 //--------------------------------------------------------
 // 3D Vektor
 //--------------------------------------------------------
@@ -230,7 +234,7 @@ public:
         rowsFilled = 4;
     }
 
-    Matrix4D transposed() {
+    Matrix4D transposed() const {
         Matrix4D t;
         for (size_t i = 0; i < rowsFilled; i++)
             t.addColumn(mx[i][0], mx[i][1], mx[i][2], mx[i][3]);
@@ -275,7 +279,6 @@ public:
         return result;
     }
 
-
     float *getRow(size_t i) {
         return mx[i];
     }
@@ -302,9 +305,6 @@ const unsigned recursionMax = 6;
 
 const Color worldAmbient = Color(0.2, 0.2, 0.2);
 const Color ambientSky = Color(0.3, 0.5, 0.7);
-
-#define FLT_MAX 10000.0f
-#define NEAR_ZERO 0.001f
 
 Color image[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
 
@@ -470,7 +470,8 @@ float min(float f1, float f2) {
     return f1 < f2 ? f1 : f2;
 }
 
-class QuadraticObject : public Object {
+class QuadricSurface : public Object {
+protected :
     Matrix4D Q;
 
     Matrix4D getColumnVector(float x, float y, float z) {
@@ -519,15 +520,29 @@ class QuadraticObject : public Object {
     }
 
 public:
-
-    QuadraticObject(Material const &material, float a = 0.0f, float b = 0.0f, float c = 0.0f, float d = 0.0f, float e = 0.0f, float f = 0.0f, float g = 0.0f, float h = 0.0f, float i = 0.0f, float j = 0.0f)
+    QuadricSurface(Material const &material,
+            float a = 0.0f,
+            float b = 0.0f,
+            float c = 0.0f,
+            float d = 0.0f,
+            float e = 0.0f,
+            float f = 0.0f,
+            float g = 0.0f,
+            float h = 0.0f,
+            float i = 0.0f,
+            float j = 0.0f,
+            Vector const &stretch = Vector(1.0, 1.0, 1.0),
+            Vector const &offset = Vector(0.0, 0.0, 0.0),
+            float angle = 0.0f)
             : Object(material) {
+
         Q = Matrix4D(
                 a, b, c, d,
                 b, e, f, g,
                 c, f, h, i,
                 d, g, i, j
         );
+        transform(stretch,offset,angle);
     }
 
     Vector getNormal(Vector const &intersectPoint) {
@@ -535,6 +550,52 @@ public:
         float y = gradY(intersectPoint);
         float z = gradZ(intersectPoint);
         return Vector(x, y, z).normalized();
+    }
+
+    Matrix4D stretchTransformInverse(Vector const &stretch) {
+        float x = 1.0f / stretch.x;
+        float y = 1.0f / stretch.y;
+        float z = 1.0f / stretch.z;
+        return Matrix4D(
+                x, 0, 0, 0,
+                0, y, 0, 0,
+                0, 0, z, 0,
+                0, 0, 0, 1
+        );
+    }
+
+    Matrix4D offsetTransformInverse(Vector const &offset) {
+        float x = - offset.x;
+        float y = - offset.y;
+        float z = - offset.z;
+        return Matrix4D(
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                x, y, z, 1
+        );
+    }
+
+    Matrix4D rotationTransformInverse(float angle) {
+        return Matrix4D(
+                cosf(angle), sinf(angle), 0.0f, 0.0f,
+                -1.0f * sinf(angle), cosf(angle), 0.0f, 0.0f,
+                0.0f, 0.0f, 1.0f, 0.0f,
+                0.0f, 0.0f, 0.0f, 1.0f
+        );
+    }
+
+    Matrix4D transformWith (Matrix4D const &M) {
+        return M * Q * M.transposed();
+    }
+
+    void transform(Vector const &stretch, Vector const &offset, float angle) {
+        Matrix4D stretchInvM = stretchTransformInverse(stretch);
+        Matrix4D offsetInvM = offsetTransformInverse(offset);
+        Matrix4D rotationInvM = rotationTransformInverse(angle);
+        Q = transformWith(stretchInvM);
+        Q = transformWith(offsetInvM);
+        Q = transformWith(rotationInvM);
     }
 
     Intersection intersect(Ray const &ray) {
@@ -570,13 +631,15 @@ public:
 
 };
 
-class Sphere : public QuadraticObject {
+class Sphere : public QuadricSurface {
 public:
-    Sphere(Material const &material)
-            : QuadraticObject(material, 1, 0, 0, 0, 1, 0, 0, 1, 0, -1) {
-    }
+    Sphere(Material const &material, Vector const &center, float radius)
+            : QuadricSurface(material,
+            1, 0, 0, 0, 1, 0, 0, 1, 0, -1,
+            Vector(radius, radius, radius),
+            center
+    ) {  }
 };
-
 
 class Circle : public Object {
     Vector center, normal;
@@ -664,44 +727,18 @@ public:
 
 };
 
-class Ellipsoid : public Object {
-    Vector focus1;
-    Vector focus2;
-    float distance;
-
-
+class Ellipsoid : public QuadricSurface {
 public:
-    Ellipsoid(Material const &material, Vector const &focus1, Vector const &focus2, float distance)
-            : Object(material), focus1(focus1), focus2(focus2), distance(distance) {
-    }
-
-    Intersection intersect(Ray const &ray) {
-        // TODO
-    }
-
-    Vector const &getFocus1() const {
-        return focus1;
-    }
-
-    void setFocus1(Vector const &focus1) {
-        Ellipsoid::focus1 = focus1;
-    }
-
-    Vector const &getFocus2() const {
-        return focus2;
-    }
-
-    void setFocus2(Vector const &focus2) {
-        Ellipsoid::focus2 = focus2;
-    }
-
-    float getDistance() const {
-        return distance;
-    }
-
-    void setDistance(float distance) {
-        Ellipsoid::distance = distance;
-    }
+    Ellipsoid(Material const &material,
+            Vector const &center,
+            Vector const &size,
+            float angle)
+            : QuadricSurface(material,
+            1, 0, 0, 0, 1, 0, 0, 1, 0, -1,
+            size,
+            center,
+            angle
+    ) {  }
 };
 
 class Paraboloid : Object {
@@ -964,52 +1001,11 @@ public:
         return closest;
     }
 
-    void testMatrix() {
-        // {{6, -7, 10, 12}, {0, 3, -1, 8}, {0, 5, -7, -5}} * {{3, 4}, {-7, 9},{10, 1}, {0, 2}}
-        Matrix4D A, B;
-        // if (columnsFilled == right.rowsFilled)
-        A.addRow(6, -7, 10, 12);
-        A.addRow(0, 3, -1, 8);
-        A.addRow(0, 5, -7, -5);
-
-        B.addColumn(3, -7, 10, 0);
-        B.addColumn(4, 9, 1, 2);
-
-        Matrix4D szorzat = A * B;
-        // legyen:
-        /*
-        (167 | -5
-        -31 | 42
-        -105 | 28)
-         */
-
-
-        Matrix4D C;
-        C.addRow(3, 4, 5, -1);
-        C.addRow(-7, 9, 3, 0);
-        C.addRow(10, 1, 4, 2);
-        Matrix4D osszeg = A + C;
-        szorzat.transposed();
-        float *row = osszeg.getRow(2);
-        size_t rowSize = osszeg.getColumnsFilled();
-        osszeg.get(2, 3);
-
-        osszeg = osszeg * 2;
-        osszeg.getColumnsFilled();
-        Matrix4D D(
-                3, 4, 5, -1,
-                -7, 9, 3, 0,
-                10, 1, 4, 2,
-                9, 3, 2, 1
-        );
-        D.getRowsFilled();
-    }
-
     void build() {
-        testMatrix();
-
         // teszt:
-        add(new Sphere(gold));
+        float fok = 90.0f;
+        float rad = fok * 2.0f * PI / 360.0f;
+        add(new Ellipsoid(gold, Vector(0.0, 1.0, 0.0), Vector(1.0f, 2.0f, 1.0f), rad));
         add(new Light(Color(20, 20, 20), Vector(-1.5, 1.5, 0.0)));
         add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 3.0));
         // TODO
@@ -1042,8 +1038,6 @@ public:
         Vector up = (dir % right).normalized() * 4.0;
 
 
-
-
         // döntve
         /*
         Vector lookat = Vector(0, 0.9, 0);
@@ -1054,8 +1048,6 @@ public:
         right *=4.0;
         up*=4.0;
         */
-
-
 
         camera = new Camera(eye, lookat, up, right, screenWidth, screenHeight);
     }
