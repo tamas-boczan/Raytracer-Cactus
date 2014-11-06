@@ -463,7 +463,6 @@ public:
     virtual Color getTextureModifier(Vector const &at) const {
         return Color(1.0, 1.0, 1.0);
     }
-
 };
 
 float min(float f1, float f2) {
@@ -519,6 +518,59 @@ protected :
         return normalM.get(0, 0);
     }
 
+    Vector getNormal(Vector const &intersectPoint) {
+        float x = gradX(intersectPoint);
+        float y = gradY(intersectPoint);
+        float z = gradZ(intersectPoint);
+        return Vector(x, y, z).normalized();
+    }
+
+    Matrix4D stretchTransformInverse(Vector const &stretch) {
+        float x = 1.0f / stretch.x;
+        float y = 1.0f / stretch.y;
+        float z = 1.0f / stretch.z;
+        return Matrix4D(
+                x, 0, 0, 0,
+                0, y, 0, 0,
+                0, 0, z, 0,
+                0, 0, 0, 1
+        );
+    }
+
+    Matrix4D offsetTransformInverse(Vector const &offset) {
+        float x = -offset.x;
+        float y = -offset.y;
+        float z = -offset.z;
+        return Matrix4D(
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                x, y, z, 1
+        );
+    }
+
+    Matrix4D rotationTransformInverse(float angle) {
+        return Matrix4D(
+                cosf(angle), sinf(angle), 0.0f, 0.0f,
+                -1.0f * sinf(angle), cosf(angle), 0.0f, 0.0f,
+                0.0f, 0.0f, 1.0f, 0.0f,
+                0.0f, 0.0f, 0.0f, 1.0f
+        );
+    }
+
+    Matrix4D transformWith(Matrix4D const &M) {
+        return M * Q * M.transposed();
+    }
+
+    void transform(Vector const &stretch, Vector const &offset, float angle) {
+        Matrix4D stretchInvM = stretchTransformInverse(stretch);
+        Matrix4D offsetInvM = offsetTransformInverse(offset);
+        Matrix4D rotationInvM = rotationTransformInverse(angle);
+        Q = transformWith(stretchInvM);
+        Q = transformWith(offsetInvM);
+        Q = transformWith(rotationInvM);
+    }
+
 public:
     QuadricSurface(Material const &material,
             float a = 0.0f,
@@ -542,60 +594,7 @@ public:
                 c, f, h, i,
                 d, g, i, j
         );
-        transform(stretch,offset,angle);
-    }
-
-    Vector getNormal(Vector const &intersectPoint) {
-        float x = gradX(intersectPoint);
-        float y = gradY(intersectPoint);
-        float z = gradZ(intersectPoint);
-        return Vector(x, y, z).normalized();
-    }
-
-    Matrix4D stretchTransformInverse(Vector const &stretch) {
-        float x = 1.0f / stretch.x;
-        float y = 1.0f / stretch.y;
-        float z = 1.0f / stretch.z;
-        return Matrix4D(
-                x, 0, 0, 0,
-                0, y, 0, 0,
-                0, 0, z, 0,
-                0, 0, 0, 1
-        );
-    }
-
-    Matrix4D offsetTransformInverse(Vector const &offset) {
-        float x = - offset.x;
-        float y = - offset.y;
-        float z = - offset.z;
-        return Matrix4D(
-                1, 0, 0, 0,
-                0, 1, 0, 0,
-                0, 0, 1, 0,
-                x, y, z, 1
-        );
-    }
-
-    Matrix4D rotationTransformInverse(float angle) {
-        return Matrix4D(
-                cosf(angle), sinf(angle), 0.0f, 0.0f,
-                -1.0f * sinf(angle), cosf(angle), 0.0f, 0.0f,
-                0.0f, 0.0f, 1.0f, 0.0f,
-                0.0f, 0.0f, 0.0f, 1.0f
-        );
-    }
-
-    Matrix4D transformWith (Matrix4D const &M) {
-        return M * Q * M.transposed();
-    }
-
-    void transform(Vector const &stretch, Vector const &offset, float angle) {
-        Matrix4D stretchInvM = stretchTransformInverse(stretch);
-        Matrix4D offsetInvM = offsetTransformInverse(offset);
-        Matrix4D rotationInvM = rotationTransformInverse(angle);
-        Q = transformWith(stretchInvM);
-        Q = transformWith(offsetInvM);
-        Q = transformWith(rotationInvM);
+        transform(stretch, offset, angle);
     }
 
     Intersection intersect(Ray const &ray) {
@@ -638,7 +637,8 @@ public:
             1, 0, 0, 0, 1, 0, 0, 1, 0, -1,
             Vector(radius, radius, radius),
             center
-    ) {  }
+    ) {
+    }
 };
 
 class Circle : public Object {
@@ -733,12 +733,15 @@ public:
             Vector const &center,
             Vector const &size,
             float angle)
-            : QuadricSurface(material,
+            : QuadricSurface(
+
+            material,
             1, 0, 0, 0, 1, 0, 0, 1, 0, -1,
             size,
             center,
             angle
-    ) {  }
+    ) {
+    }
 };
 
 class Paraboloid : Object {
@@ -962,31 +965,6 @@ class Scene {
         return color;
     }
 
-public:
-
-    Scene() {
-        objectSize = lightSize = 0;
-    }
-
-    void add(Object *object) {
-        objects[objectSize++] = object;
-    }
-
-    void add(Light *light) {
-        lights[lightSize++] = light;
-    }
-
-    void render() {
-        for (size_t Y = 0; Y < screenHeight; Y++)
-            for (size_t X = 0; X < screenWidth; X++) {
-                Ray ray = camera->getRay(X, Y);
-                Color color = trace(ray, 0);
-                // color = color/(Color(1,1,1) + color);
-                // TODO: tone Mapping
-                image[Y * screenWidth + X] = color;
-            }
-    }
-
     Intersection intersectAll(Ray const &ray) const {
         Intersection closest;
         closest.rayT = FLT_MAX;
@@ -999,6 +977,31 @@ public:
             }
         }
         return closest;
+    }
+
+    void add(Object *object) {
+        objects[objectSize++] = object;
+    }
+
+    void add(Light *light) {
+        lights[lightSize++] = light;
+    }
+
+public:
+
+    Scene() {
+        objectSize = lightSize = 0;
+    }
+
+    void render() {
+        for (size_t Y = 0; Y < screenHeight; Y++)
+            for (size_t X = 0; X < screenWidth; X++) {
+                Ray ray = camera->getRay(X, Y);
+                Color color = trace(ray, 0);
+                // color = color/(Color(1,1,1) + color);
+                // TODO: tone Mapping
+                image[Y * screenWidth + X] = color;
+            }
     }
 
     void build() {
