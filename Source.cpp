@@ -110,7 +110,7 @@ struct Vector {
     }
 
     float length() const {
-        return (float) sqrt(x * x + y * y + z * z);
+        return sqrtf(x * x + y * y + z * z);
     }
 
     Vector normalized() const {
@@ -184,11 +184,6 @@ class Matrix4D {
     float mx[4][4];
     size_t rowsFilled;
     size_t columnsFilled;
-
-private:
-    size_t max(size_t v1, size_t v2) const {
-        return v1 > v2 ? v1 : v2;
-    }
 
 public:
     Matrix4D() {
@@ -279,20 +274,8 @@ public:
         return result;
     }
 
-    float *getRow(size_t i) {
-        return mx[i];
-    }
-
     float get(size_t i, size_t j) const {
         return mx[i][j];
-    }
-
-    size_t getRowsFilled() const {
-        return rowsFilled;
-    }
-
-    size_t getColumnsFilled() const {
-        return columnsFilled;
     }
 };
 
@@ -365,7 +348,7 @@ public:
         float cosDelta = n * h;
         if (cosDelta < NEAR_ZERO)
             cosDelta = 0.0;
-        lRef = lRef + lIn * specular * pow(cosDelta, shine);
+        lRef = lRef + lIn * specular * powf(cosDelta, shine);
         return lRef;
     }
 
@@ -386,13 +369,13 @@ public:
         float disc = 1 - (1 - cosAlpha * cosAlpha) / cn / cn;
         if (disc < NEAR_ZERO)
             return V.normalized();
-        return (V / cn + N * (cosAlpha / cn - sqrt(disc))).normalized();
+        return (V / cn + N * (cosAlpha / cn - sqrtf(disc))).normalized();
     }
 
     Color Fresnel(Vector const &n, Vector const &v) {
         float cosTheta = (n * v) * (-1.0f);
         Color one = Color(1.0, 1.0, 1.0);
-        return F0 + (one - F0) * pow((1 - cosTheta), 5);
+        return F0 + (one - F0) * powf((1 - cosTheta), 5);
     }
 
     Color const &getAmbient() const {
@@ -440,6 +423,23 @@ const Intersection noIntersection = {
         false
 };
 
+float degreeToRad(float degree) {
+    return degree * 2.0f * PI / 360.0f;
+}
+
+float radToDegree(float rad) {
+    return rad * 360.0f / 2.0f / PI;
+}
+
+float min(float f1, float f2) {
+    return f1 < f2 ? f1 : f2;
+}
+
+float max(float f1, float f2) {
+    return f1 > f2 ? f1 : f2;
+}
+
+
 class Object {
 protected:
     Material material;
@@ -454,24 +454,12 @@ public:
         return material;
     }
 
-    void setMaterial(Material const &material) {
-        Object::material = material;
-    }
-
     virtual Intersection intersect(Ray const &ray) = 0;
 
     virtual Color getTextureModifier(Vector const &at) const {
         return Color(1.0, 1.0, 1.0);
     }
 };
-
-float min(float f1, float f2) {
-    return f1 < f2 ? f1 : f2;
-}
-
-float max(float f1, float f2) {
-    return f1 > f2 ? f1 : f2;
-}
 
 class QuadricSurface : public Object {
 protected :
@@ -487,11 +475,11 @@ protected :
     }
 
     bool solveQuadraticEquation(float a, float b, float c, float *x1, float *x2) {
-        float disc = (float) pow(b, 2.0f) - (4.0f * a * c);
+        float disc = powf(b, 2.0f) - (4.0f * a * c);
         if (disc < 0.0f || a == 0.0f)
             return false;
-        *x1 = (-b - (float) sqrt(disc)) / (2.0f * a);
-        *x2 = (-b + (float) sqrt(disc)) / (2.0f * a);
+        *x1 = (-b - sqrtf(disc)) / (2.0f * a);
+        *x2 = (-b + sqrtf(disc)) / (2.0f * a);
         return true;
     }
 
@@ -565,17 +553,17 @@ protected :
         );
     }
 
-    Matrix4D transformWith(Matrix4D const &M) {
+    Matrix4D transformWith(Matrix4D const &Q, Matrix4D const &M) {
         return M * Q * M.transposed();
     }
 
-    void transform(Vector const &stretch, Vector const &offset, float angle) {
+    void transform(Matrix4D &M, Vector const &stretch, Vector const &offset, float angle) {
         Matrix4D stretchInvM = stretchTransformInverse(stretch);
         Matrix4D offsetInvM = offsetTransformInverse(offset);
         Matrix4D rotationInvM = rotationTransformInverse(angle);
-        Q = transformWith(stretchInvM);
-        Q = transformWith(offsetInvM);
-        Q = transformWith(rotationInvM);
+        M = transformWith(M, stretchInvM);
+        M = transformWith(M, rotationInvM);
+        M = transformWith(M, offsetInvM);
     }
 
     Intersection chooseValidIntersection(float x1, float x2, Ray const &ray){
@@ -631,9 +619,9 @@ public:
             Vector const &stretch = Vector(1.0, 1.0, 1.0),
             Vector const &offset = Vector(0.0, 0.0, 0.0),
             float angle = 0.0f,
+            bool isLimited = false,
             Vector const &limitFrom = Vector(0.0, 0.0, 0.0),
-            float limit = 0.0,
-            bool isLimited = false
+            float limit = 1.0
     )
             : Object(material), limitFrom(limitFrom), limit(limit), isLimited(isLimited) {
 
@@ -643,7 +631,7 @@ public:
                 c, f, h, i,
                 d, g, i, j
         );
-        transform(stretch, offset, angle);
+        transform(Q, stretch, offset, angle);
     }
 
     Intersection intersect(Ray const &ray) {
@@ -719,51 +707,42 @@ public:
     }
 };
 
-class Cylinder : public Object {
-    Vector center, direction;
-    float radius, height;
-
+class Cylinder : public QuadricSurface {
 public:
-    Cylinder(Material const &material, Vector const &center, Vector const &direction, float radius, float height)
-            : Object(material), center(center), direction(direction.normalized()), radius(radius), height(height) {
-    }
+    /*
+    Vector const &stretch = Vector(1.0, 1.0, 1.0),
+            Vector const &offset = Vector(0.0, 0.0, 0.0),
+            float angle = 0.0f,
+            bool isLimited = false,
+            Vector const &limitFrom = Vector(0.0, 0.0, 0.0),
+            float limit = 1.0
+     */
+    Cylinder(Material const &material,
+            Vector const &center,
+            float radius,
+            float angle,
+            float height)
+            : QuadricSurface(
 
-    Intersection intersect(Ray const &ray) {
-        // TODO
-    }
+            material,
+            1, 0, 0, 0, 0, 0, 0, 1, 0, -1,
+            Vector(radius, 1.0, radius), // stretch
+            center, // offset
+            angle, // angle
+            true) {
 
-    Vector const &getCenter() const {
-        return center;
+        float rotatedAngle = angle - degreeToRad(90.0f);
+        Vector rotationVector = Vector(cosf(rotatedAngle), sinf(rotatedAngle), 0.0f);
+        rotationVector = rotationVector.normalized();
+        Vector top = center + (rotationVector * height);
+        Vector bottom = center;
+        Vector middle = (top + bottom) / 2.0f;
+        limitFrom = middle;
+        float a = radius;
+        float b = (top - middle).length();
+        float c = sqrtf(a*a + b*b);
+        limit = c;
     }
-
-    void setCenter(Vector const &center) {
-        Cylinder::center = center;
-    }
-
-    float getRadius() const {
-        return radius;
-    }
-
-    void setRadius(float radius) {
-        Cylinder::radius = radius;
-    }
-
-    float getHeight() const {
-        return height;
-    }
-
-    void setHeight(float height) {
-        Cylinder::height = height;
-    }
-
-    Vector const &getDirection() const {
-        return direction;
-    }
-
-    void setDirection(Vector const &direction) {
-        Cylinder::direction = direction;
-    }
-
 };
 
 class Ellipsoid : public QuadricSurface {
@@ -918,19 +897,11 @@ public:
 
     Color getRad(Vector const &x) const {
         float distance = (x - p).length();
-        return color / pow(distance, 2) / 10;
-    }
-
-    void setColor(Color const &color) {
-        Light::color = color;
+        return color / powf(distance, 2) / 10;
     }
 
     Vector const &getP() const {
         return p;
-    }
-
-    void setP(Vector const &p) {
-        Light::p = p;
     }
 };
 
@@ -1045,20 +1016,25 @@ public:
 
     void build() {
         // teszt:
-        float fok = 90.0f;
-        float rad = fok * 2.0f * PI / 360.0f;
-        add(new Ellipsoid(gold, Vector(0.0, 1.0, 0.0), Vector(1.0f, 2.0f, 1.0f), rad));
+        // add(new Ellipsoid(gold, Vector(0.0, 1.0, 0.0), Vector(1.0f, 1.5f, 1.0f), degreeToRad(30.0f)));
+        //add(new Cylinder(gold, Vector(0.0, 0.0f, 0.0), 0.3f, degreeToRad(fok), 1.0));
         add(new Light(Color(20, 20, 20), Vector(-1.5, 1.5, 0.0)));
-        add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 3.0));
+        add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 6.0));
         // TODO
 
         //add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 3.0));
 
 
         // henger-kaktusz
-        add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), Vector(0.0, 1.0, 0.0), 0.5, 2.0));
-        add(new Cylinder(glass, Vector(-0.6, 0.1, 2.0), Vector(1.0, 0.0, 0.0), 0.23, 0.9));
-        add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), Vector(0.0, 1.0, 0.0), 0.125, 0.6));
+        // közép, irányv, radius, height
+        // add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), Vector(0.0, 1.0, 0.0), 0.5, 2.0));
+        // add(new Cylinder(glass, Vector(-0.6, 0.1, 2.0), Vector(1.0, 0.0, 0.0), 0.23, 0.9));
+        //add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), Vector(0.0, 1.0, 0.0), 0.125, 0.6));
+        //add(new Cylinder(gold, Vector(-1.0f, -1.0f, 2.0f), 0.5, 0.0, 2.0));
+
+        add(new Cylinder(gold, Vector(-0.6, 0.1, 2.0), 0.23, degreeToRad(45.0f), 0.9));
+
+        // add(new Cylinder(gold, Vector(-0.6, 0.5, 0.0), 0.3, degreeToRad(30.0f), 1.3f));
 
         // henger mögött
         //add(new Light(Color(17, 17, 26), Vector(-1.5, 2.0, 3.0)));
@@ -1075,10 +1051,9 @@ public:
         // középen
         Vector lookat = Vector(0, 0, 0);
         Vector eye = Vector(0, 0, -2);
-        Vector right = Vector(1, 0, 0) * 4.0;
+        Vector right = Vector(1, 0, 0);
         Vector dir = (lookat - eye).normalized();
-        Vector up = (dir % right).normalized() * 4.0;
-
+        Vector up = (dir % right).normalized();
 
         // döntve
         /*
@@ -1087,9 +1062,9 @@ public:
         Vector right = Vector(1, 0, 0);
         Vector dir = (lookat - eye).normalized();
         Vector up = (dir % right).normalized();
-        right *=4.0;
-        up*=4.0;
         */
+        // right *= 2.0;
+        // up *= 2.0;
 
         camera = new Camera(eye, lookat, up, right, screenWidth, screenHeight);
     }
