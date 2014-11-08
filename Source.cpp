@@ -580,6 +580,8 @@ protected :
             i.real = true;
             i.pos = ray.p0 + (ray.v.normalized() * t);
             i.normal = getNormal(i.pos);
+            if (ray.v * i.normal > NEAR_ZERO)
+                i.normal *= -1.0f;
             return i;
         }
 
@@ -589,6 +591,8 @@ protected :
             i.real = true;
             i.pos = ray.p0 + (ray.v.normalized() * t);
             i.normal = getNormal(i.pos);
+            if (ray.v * i.normal > NEAR_ZERO)
+                i.normal *= -1.0f;
             return i;
         }
 
@@ -599,6 +603,8 @@ protected :
             i.real = true;
             i.pos = ray.p0 + (ray.v.normalized() * t);
             i.normal = getNormal(i.pos);
+            if (ray.v * i.normal > NEAR_ZERO)
+                i.normal *= -1.0f;
             return i;
         }
 
@@ -702,10 +708,8 @@ public:
         float dist = (at - center).length();
         float stripeWidth = 0.2; //radius / 800.0f;
         int stripeNr = (int) floorf(dist / stripeWidth);
-        /*
         if (stripeNr % 2 == 0)
             return Color(1.0, 1.0, 1.0);
-            */
         return Color(6.0, 6.0, 6.0);
     }
 };
@@ -741,6 +745,7 @@ public:
         limit = c;
     }
 };
+
 
 class Ellipsoid : public QuadricSurface {
 public:
@@ -1005,7 +1010,7 @@ public:
             for (size_t X = 0; X < screenWidth; X++) {
                 Ray ray = camera->getRay(X, Y);
                 Color color = trace(ray, 0);
-                color = color/(Color(1,1,1) + color);
+                //color = color/(Color(1,1,1) + color);
                 // TODO: tone Mapping
                 image[Y * screenWidth + X] = color;
             }
@@ -1023,19 +1028,9 @@ public:
 
 
         // henger-kaktusz
-        // közép, irányv, radius, height
-        // add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), Vector(0.0, 1.0, 0.0), 0.5, 2.0));
-        // add(new Cylinder(glass, Vector(-0.6, 0.1, 2.0), Vector(1.0, 0.0, 0.0), 0.23, 0.9));
-        //add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), Vector(0.0, 1.0, 0.0), 0.125, 0.6));
-        //add(new Cylinder(gold, Vector(-1.0f, -1.0f, 2.0f), 0.5, 0.0, 2.0));
-
-        //add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), 0.5, 2.0, degreeToRad(0.0f)));
-        //add(new Cylinder(glass, Vector(-0.6, 0.1, 2.0), 0.23, 0.9, degreeToRad(90.0f)));
-        add(new Cylinder(glass, Vector(1.2, -0.2, 2.0), 0.4, 0.6, degreeToRad(0.0f)));
-       add(new Cylinder(gold, Vector(-0.2, -0.2, 2.0), 0.4, 0.6, degreeToRad(0.0f)));
-       add(new Ellipsoid(gold, Vector(-1.4, 0.0, 2.0), Vector(0.3f, 0.5f, 0.3f), degreeToRad(0.0f)));
-       //add(new Cylinder(gold, Vector(0.2, 0.0, 0.0), 4.0, 5.0, degreeToRad(0.0f)));
-       //add(new Circle(glass, Vector(0.1, 0.7, 2.0), Vector(0.0, 1.0, 0.0), 0.2));
+        add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), 0.5, 2.0, degreeToRad(0.0f)));
+        add(new Cylinder(glass, Vector(-0.6, 0.1, 2.0), 0.23, 0.9, degreeToRad(90.0f)));
+        add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), 0.125, 0.6, degreeToRad(0.0f)));
 
 
         //add(new Cylinder(gold, Vector(-0.6, 0.1, 2.0), 0.23, 0.9, degreeToRad(45.0f)));
@@ -1045,12 +1040,11 @@ public:
         // henger mögött
         add(new Light(Color(17, 17, 26), Vector(-1.5, 2.0, 3.0)));
         //henger-lámpa
-        // add(new Light(Color(2,2,5), Vector(-1.0, 0.8, 2.0)));
-
+        //add(new Light(Color(2,2,5), Vector(-1.0, 0.8, 2.0)));
         // hengerek találkozásánál
-        //add(new Light(Color(2,2,5), Vector(-0.52, 0.1, 2.0)));
+        add(new Light(Color(2,2,5), Vector(-0.52, 0.1, 2.0)));
         // hiba: teljes visszaverődés?
-        //add(new Light(Color(2,2,5), Vector(-0.50, 0.1, 2.0)));
+        // add(new Light(Color(2,2,5), Vector(-0.50, 0.1, 2.0)));
 
         //add(new Light(Color(20,20,50), Vector(-2.0, 0.0, 2.0)));
 
