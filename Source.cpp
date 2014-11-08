@@ -566,41 +566,42 @@ protected :
         M = transformWith(M, offsetInvM);
     }
 
-    Intersection chooseValidIntersection(float x1, float x2, Ray const &ray){
-        float x = min(x1, x2);
-        if (x < NEAR_ZERO)
-            return noIntersection;
-        Intersection i;
-        i.rayT = x;
-        i.pos = ray.p0 + (ray.v.normalized() * i.rayT);
+    bool isInsideOrb(Ray const &ray, float t){
+        Vector pos = ray.p0 + (ray.v.normalized() * t);
+        float size = (pos - limitFrom).length();
+        return size < limit;
+    }
 
-        // a test nem limitált, a kiválaszott X valid
-        if (!isLimited) {
+    Intersection chooseValidIntersection(float t1, float t2, Ray const &ray){
+        float t = min(t1, t2);
+        if (t > NEAR_ZERO && !isLimited) {
+            Intersection i;
+            i.rayT = t;
             i.real = true;
+            i.pos = ray.p0 + (ray.v.normalized() * t);
             i.normal = getNormal(i.pos);
             return i;
         }
 
-        // a kiválasztott X a limiten belül van -> valid
-        float size = (i.pos - limitFrom).length();
-        if (size < limit) {
+        if (t > NEAR_ZERO  && isLimited && isInsideOrb(ray, t)) {
+            Intersection i;
+            i.rayT = t;
             i.real = true;
+            i.pos = ray.p0 + (ray.v.normalized() * t);
             i.normal = getNormal(i.pos);
             return i;
         }
 
-        // kipróbáljuk a másik X-et is.
-        x = max(x1, x2);
-        i.rayT = x;
-        i.pos = ray.p0 + (ray.v.normalized() * i.rayT);
-        size = (i.pos - limitFrom).length();
-        if (size < limit) {
+        t = max(t1, t2);
+        if (t > NEAR_ZERO  && isLimited && isInsideOrb(ray, t)) {
+            Intersection i;
+            i.rayT = t;
             i.real = true;
+            i.pos = ray.p0 + (ray.v.normalized() * t);
             i.normal = getNormal(i.pos);
             return i;
         }
 
-        // ez se stimmel
         return noIntersection;
     }
 
@@ -701,8 +702,10 @@ public:
         float dist = (at - center).length();
         float stripeWidth = 0.2; //radius / 800.0f;
         int stripeNr = (int) floorf(dist / stripeWidth);
+        /*
         if (stripeNr % 2 == 0)
             return Color(1.0, 1.0, 1.0);
+            */
         return Color(6.0, 6.0, 6.0);
     }
 };
@@ -712,29 +715,23 @@ public:
     /*
     Vector const &stretch = Vector(1.0, 1.0, 1.0),
             Vector const &offset = Vector(0.0, 0.0, 0.0),
-            float angle = 0.0f,
+            float clockWiseAngle = 0.0f,
             bool isLimited = false,
             Vector const &limitFrom = Vector(0.0, 0.0, 0.0),
             float limit = 1.0
      */
-    Cylinder(Material const &material,
-            Vector const &center,
-            float radius,
-            float angle,
-            float height)
+    Cylinder(Material const &material, Vector const &center, float radius, float height, float clockWiseAngle)
             : QuadricSurface(
-
             material,
             1, 0, 0, 0, 0, 0, 0, 1, 0, -1,
-            Vector(radius, 1.0, radius), // stretch
-            center, // offset
-            angle, // angle
+            Vector(radius, 1.0, radius),
+            center,
+            clockWiseAngle,
             true) {
-
-        float rotatedAngle = 2 * PI - (angle - degreeToRad(90.0f));
-        Vector rotationVector = Vector(cosf(rotatedAngle), sinf(rotatedAngle), 0.0f);
-        rotationVector = rotationVector.normalized();
-        Vector top = center + (rotationVector * height);
+        float counterClockWiseAngle = 2 * PI - (clockWiseAngle - degreeToRad(90.0f));
+        Vector direction = Vector(cosf(counterClockWiseAngle), sinf(counterClockWiseAngle), 0.0f);
+        direction = direction.normalized();
+        Vector top = center + (direction * height);
         Vector bottom = center;
         Vector middle = (top + bottom) / 2.0f;
         limitFrom = middle;
@@ -1008,17 +1005,17 @@ public:
             for (size_t X = 0; X < screenWidth; X++) {
                 Ray ray = camera->getRay(X, Y);
                 Color color = trace(ray, 0);
-                // color = color/(Color(1,1,1) + color);
+                color = color/(Color(1,1,1) + color);
                 // TODO: tone Mapping
                 image[Y * screenWidth + X] = color;
             }
     }
 
-    void build() {
+   void build() {
         // teszt:
         // add(new Ellipsoid(gold, Vector(0.0, 1.0, 0.0), Vector(1.0f, 1.5f, 1.0f), degreeToRad(30.0f)));
         //add(new Cylinder(gold, Vector(0.0, 0.0f, 0.0), 0.3f, degreeToRad(fok), 1.0));
-        add(new Light(Color(20, 20, 20), Vector(-1.5, 1.5, 0.0)));
+        // add(new Light(Color(20, 20, 20), Vector(-1.5, 1.5, 0.0)));
         add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 6.0));
         // TODO
 
@@ -1032,37 +1029,46 @@ public:
         //add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), Vector(0.0, 1.0, 0.0), 0.125, 0.6));
         //add(new Cylinder(gold, Vector(-1.0f, -1.0f, 2.0f), 0.5, 0.0, 2.0));
 
-        add(new Cylinder(gold, Vector(-0.6, 0.1, 2.0), 0.23, degreeToRad(45.0f), 0.9));
+        //add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), 0.5, 2.0, degreeToRad(0.0f)));
+        //add(new Cylinder(glass, Vector(-0.6, 0.1, 2.0), 0.23, 0.9, degreeToRad(90.0f)));
+        add(new Cylinder(glass, Vector(1.2, -0.2, 2.0), 0.4, 0.6, degreeToRad(0.0f)));
+       add(new Cylinder(gold, Vector(-0.2, -0.2, 2.0), 0.4, 0.6, degreeToRad(0.0f)));
+       add(new Ellipsoid(gold, Vector(-1.4, 0.0, 2.0), Vector(0.3f, 0.5f, 0.3f), degreeToRad(0.0f)));
+       //add(new Cylinder(gold, Vector(0.2, 0.0, 0.0), 4.0, 5.0, degreeToRad(0.0f)));
+       //add(new Circle(glass, Vector(0.1, 0.7, 2.0), Vector(0.0, 1.0, 0.0), 0.2));
+
+
+        //add(new Cylinder(gold, Vector(-0.6, 0.1, 2.0), 0.23, 0.9, degreeToRad(45.0f)));
 
         // add(new Cylinder(gold, Vector(-0.6, 0.5, 0.0), 0.3, degreeToRad(30.0f), 1.3f));
 
         // henger mögött
-        //add(new Light(Color(17, 17, 26), Vector(-1.5, 2.0, 3.0)));
+        add(new Light(Color(17, 17, 26), Vector(-1.5, 2.0, 3.0)));
         //henger-lámpa
-        //add(new Light(Color(2,2,5), Vector(-1.0, 0.8, 2.0)));
+        // add(new Light(Color(2,2,5), Vector(-1.0, 0.8, 2.0)));
 
         // hengerek találkozásánál
-        // add(new Light(Color(2,2,5), Vector(-0.52, 0.1, 2.0)));
+        //add(new Light(Color(2,2,5), Vector(-0.52, 0.1, 2.0)));
         // hiba: teljes visszaverődés?
         //add(new Light(Color(2,2,5), Vector(-0.50, 0.1, 2.0)));
 
         //add(new Light(Color(20,20,50), Vector(-2.0, 0.0, 2.0)));
 
         // középen
+        /*
         Vector lookat = Vector(0, 0, 0);
         Vector eye = Vector(0, 0, -2);
         Vector right = Vector(1, 0, 0);
         Vector dir = (lookat - eye).normalized();
         Vector up = (dir % right).normalized();
+        */
 
         // döntve
-        /*
         Vector lookat = Vector(0, 0.9, 0);
         Vector eye = Vector(0, 1.5, -0.7);
         Vector right = Vector(1, 0, 0);
         Vector dir = (lookat - eye).normalized();
         Vector up = (dir % right).normalized();
-        */
         // right *= 2.0;
         // up *= 2.0;
 
