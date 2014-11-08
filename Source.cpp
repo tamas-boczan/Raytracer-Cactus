@@ -731,7 +731,7 @@ public:
             angle, // angle
             true) {
 
-        float rotatedAngle = angle - degreeToRad(90.0f);
+        float rotatedAngle = 2 * PI - (angle - degreeToRad(90.0f));
         Vector rotationVector = Vector(cosf(rotatedAngle), sinf(rotatedAngle), 0.0f);
         rotationVector = rotationVector.normalized();
         Vector top = center + (rotationVector * height);
