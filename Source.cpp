@@ -468,12 +468,6 @@ protected :
     float limit;
     bool isLimited;
 
-    Matrix4D getColumnVector(float x, float y, float z) {
-        Matrix4D v;
-        v.addColumn(x, y, z, 0.0f);
-        return v;
-    }
-
     bool solveQuadraticEquation(float a, float b, float c, float *x1, float *x2) {
         float disc = powf(b, 2.0f) - (4.0f * a * c);
         if (disc < 0.0f || a == 0.0f)
@@ -716,14 +710,11 @@ public:
 
 class Cylinder : public QuadricSurface {
 public:
-    /*
-    Vector const &stretch = Vector(1.0, 1.0, 1.0),
-            Vector const &offset = Vector(0.0, 0.0, 0.0),
-            float clockWiseAngle = 0.0f,
-            bool isLimited = false,
-            Vector const &limitFrom = Vector(0.0, 0.0, 0.0),
-            float limit = 1.0
-     */
+
+    Cylinder(Material const &material = glass)
+            : QuadricSurface(material) {
+    }
+
     Cylinder(Material const &material, Vector const &center, float radius, float height, float clockWiseAngle)
             : QuadricSurface(
             material,
@@ -801,6 +792,38 @@ public:
         Paraboloid::height = height;
     }
 };
+
+struct CylinderCactus {
+    Object * objects[3];
+    size_t objectSize;
+
+    CylinderCactus()
+    {
+        objectSize = 0;
+    }
+
+    void setPos(Vector center, float radius, float height) {
+        objects[objectSize++] = new Cylinder(glass, center, radius, height, degreeToRad(0.0f));
+        //objects[objectSize++] = new Circle(gold, center, Vector(0,1,0), radius);
+        //objects[objectSize++] = new Circle(glass, center + Vector(0, height, 0), Vector(0,1,0), radius);
+
+        center = Vector(center.x + radius, center.y + height * 0.6f, center.z);
+        radius *= 0.45f;
+        height *= 0.45f;
+        objects[objectSize++] = new Cylinder(glass, center, radius, height, degreeToRad(90.0f));
+
+        center = Vector(center.x + height * 0.7f, center.y + radius, center.z);
+        radius *= 0.7f;
+        height *= 0.45f;
+        objects[objectSize++] = new Cylinder(glass, center, radius, height, degreeToRad(0.0f));
+    }
+
+    ~CylinderCactus(){
+        for (size_t i = 0; i < objectSize; i++)
+            delete objects[i];
+    }
+
+} cylinderCactus;
 
 class Camera {
     Vector eye, lookat, up, right;
@@ -1026,11 +1049,17 @@ public:
 
         //add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 3.0));
 
+       cylinderCactus.setPos(Vector(-1.0, -0.9, 2.0), 0.5f, 2.0f);
+       for (size_t i = 0; i < cylinderCactus.objectSize; i++)
+           add(cylinderCactus.objects[i]);
+
 
         // henger-kaktusz
+       /*
         add(new Cylinder(glass, Vector(-1.0, -1.0, 2.0), 0.5, 2.0, degreeToRad(0.0f)));
         add(new Cylinder(glass, Vector(-0.6, 0.1, 2.0), 0.23, 0.9, degreeToRad(90.0f)));
         add(new Cylinder(glass, Vector(0.1, 0.1, 2.0), 0.125, 0.6, degreeToRad(0.0f)));
+        */
 
 
         //add(new Cylinder(gold, Vector(-0.6, 0.1, 2.0), 0.23, 0.9, degreeToRad(45.0f)));
