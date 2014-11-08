@@ -857,55 +857,6 @@ public:
         r.v = (posOnScreen - eye).normalized();
         return r;
     }
-
-
-    Vector const &getEye() const {
-        return eye;
-    }
-
-    void setEye(Vector const &eye) {
-        Camera::eye = eye;
-    }
-
-    Vector const &getLookat() const {
-        return lookat;
-    }
-
-    void setLookat(Vector const &lookat) {
-        Camera::lookat = lookat;
-    }
-
-    Vector const &getUp() const {
-        return up;
-    }
-
-    void setUp(Vector const &up) {
-        Camera::up = up;
-    }
-
-    Vector const &getRight() const {
-        return right;
-    }
-
-    void setRight(Vector const &right) {
-        Camera::right = right;
-    }
-
-    float getWidth() const {
-        return width;
-    }
-
-    void setWidth(float width) {
-        Camera::width = width;
-    }
-
-    float getHeight() const {
-        return height;
-    }
-
-    void setHeight(float height) {
-        Camera::height = height;
-    }
 };
 
 class Light {
