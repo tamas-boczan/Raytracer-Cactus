@@ -737,7 +737,6 @@ public:
     }
 };
 
-
 class Ellipsoid : public QuadricSurface {
     Vector center;
 public:
@@ -762,41 +761,39 @@ public:
     }
 };
 
-class Paraboloid : Object {
-    Vector plane, focus;
+class Paraboloid : public QuadricSurface {
+    Vector center;
     float height;
-
+    float clockWiseAngle;
 public:
-    Paraboloid(Material const &material, Vector const &plane, Vector const &focus, float height)
-            : Object(material), plane(plane), focus(focus), height(height) {
+    Paraboloid(Material const &material = glass)
+            : QuadricSurface(material) {
     }
 
-    Intersection intersect(Ray const &ray) {
-        // TODO
+    Paraboloid(Material const &material, Vector const &center, float radius, float height, float clockWiseAngle)
+            : QuadricSurface(
+            material,
+            1, 0, 0, 0, 0, 0, -0.5f, 1, 0, 0,
+            Vector(radius / sqrtf(height), 1.0f, radius / sqrtf(height)),
+            center,
+            clockWiseAngle,
+            true),
+              center(center), height(height), clockWiseAngle(clockWiseAngle) {
+        limitFrom = center;
+        float a = radius;
+        float b = height;
+        float c = sqrtf(a * a + b * b);
+        limit = c;
     }
 
-    Vector const &getPlane() const {
-        return plane;
-    }
-
-    void setPlane(Vector const &plane) {
-        Paraboloid::plane = plane;
-    }
-
-    Vector const &getFocus() const {
-        return focus;
-    }
-
-    void setFocus(Vector const &focus) {
-        Paraboloid::focus = focus;
-    }
-
-    float getHeight() const {
-        return height;
-    }
-
-    void setHeight(float height) {
-        Paraboloid::height = height;
+    Intersection findSurfacePointNear(Vector near) {
+        Ray r;
+        r.p0 = near;
+        float counterClockWiseAngle = 2 * PI - (clockWiseAngle - degreeToRad(90.0f));
+        Vector direction = Vector(cosf(counterClockWiseAngle), sinf(counterClockWiseAngle), 0.0f).normalized();
+        Vector middle = center + (direction * height / 2.0f);
+        r.v = (middle - near).normalized();
+        return intersect(r);
     }
 };
 
@@ -831,7 +828,6 @@ struct CylinderCactus {
 } cylinderCactus;
 
 struct EllipsoidCactus {
-
     Object *objects[3];
     size_t objectSize;
 
@@ -878,6 +874,24 @@ struct EllipsoidCactus {
     }
 } ellipsoidCactus;
 
+struct ParaboloidCactus {
+    Object *objects[3];
+    size_t objectSize;
+
+    ParaboloidCactus() {
+        objectSize = 0;
+    }
+
+    void setPos(Vector bottomPoint, float radiusOnTop, float height) {
+        Paraboloid *p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, degreeToRad(0.0f));
+        objects[objectSize++] = p;
+    }
+
+    ~ParaboloidCactus() {
+        for (size_t i = 0; i < objectSize; i++)
+            delete objects[i];
+    }
+} paraboloidCactus;
 
 class Camera {
     Vector eye, lookat, up, right;
@@ -1046,7 +1060,9 @@ public:
 
     void build() {
         Vector cylinderPos(-1.4, -0.9, 1.5);
-        Vector ellipsoidPos(Vector(0.0, -0.9, 2.0));
+        Vector ellipsoidPos(0.0, -0.9, 2.0);
+        Vector paraboloidPos(1.0, -0.9, 1.0);
+
         // TODO paraboloid, fények
         // asztal
         add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 6.0));
@@ -1060,6 +1076,9 @@ public:
         ellipsoidCactus.setPos(ellipsoidPos, 2.0f);
         for (size_t i = 0; i < ellipsoidCactus.objectSize; i++)
             add(ellipsoidCactus.objects[i]);
+
+        paraboloidCactus.setPos(paraboloidPos, 0.5f, 2.0f);
+        add(paraboloidCactus.objects[0]);
 
 
         // fényforrások
@@ -1084,6 +1103,7 @@ public:
          Vector dir = (lookat - eye).normalized();
          Vector up = (dir % right).normalized();
          */
+
 
         // döntve
         Vector lookat = Vector(0, 0.9, 0);
