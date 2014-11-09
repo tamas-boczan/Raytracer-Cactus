@@ -64,6 +64,37 @@
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Innentol modosithatod...
+struct Vector;
+struct Color;
+
+class Matrix4D;
+
+struct Ray;
+struct Intersection;
+
+class Material;
+
+class Camera;
+
+class Light;
+
+class Scene;
+
+class Object;
+
+class QuadricSurface;
+
+class Circle;
+
+class Cylinder;
+
+class Ellipsoid;
+
+class Paraboloid;
+
+struct CylinderCactus;
+struct EllipsoidCactus;
+struct ParaboloidCactus;
 
 #define FLT_MAX 10000.0f
 #define NEAR_ZERO 0.001f
@@ -180,6 +211,8 @@ struct Color {
     }
 };
 
+long matrixszorzasok = 0;
+
 class Matrix4D {
     float mx[4][4];
     size_t rowsFilled;
@@ -255,9 +288,10 @@ public:
         Matrix4D result;
         result.rowsFilled = rowsFilled;
         result.columnsFilled = columnsFilled;
-        for (size_t i = 0; i < result.rowsFilled; i++)
-            for (size_t j = 0; j < result.columnsFilled; j++)
+        for (size_t i = 0; i < rowsFilled; i++)
+            for (size_t j = 0; j < columnsFilled; j++)
                 result.mx[i][j] = mx[i][j] * f;
+        matrixszorzasok++;
         return result;
     }
 
@@ -279,25 +313,10 @@ public:
     }
 };
 
-const int screenWidth = 600;    // alkalmazás ablak felbontása
-const int screenHeight = 600;
-
-const size_t maxObjectCount = 10;
-const size_t maxLightCount = 3;
-const unsigned recursionMax = 6;
-
-const Color worldAmbient = Color(0.2, 0.2, 0.2);
-const Color ambientSky = Color(0.3, 0.5, 0.7);
-
-Color image[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
-
-
 struct Ray {
     Vector p0;
     Vector v;
 };
-
-class Object;
 
 struct Intersection {
     Vector pos, normal;
@@ -391,6 +410,18 @@ public:
     }
 };
 
+const int screenWidth = 600;    // alkalmazás ablak felbontása
+const int screenHeight = 600;
+
+const size_t maxObjectCount = 20;
+const size_t maxLightCount = 3;
+const unsigned recursionMax = 6;
+
+const Color worldAmbient = Color(0.2, 0.2, 0.2);
+const Color ambientSky = Color(0.3, 0.5, 0.7);
+
+Color image[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
+
 // Forrás: http://www.nicoptere.net/dump/materials.html
 const Material gold(Color(0.17, 0.35, 1.5), Color(3.1, 2.7, 1.9),
         Color(0.75, 0.61, 0.23), Color(0.25, 0.20, 0.07), Color(0.63, 0.56, 0.37),
@@ -404,13 +435,13 @@ const Material silver(Color(0.14, 0.16, 0.13), Color(4.1, 2.3, 3.1),
         true, false);
 
 // Forrás: http://globe3d.sourceforge.net/g3d_html/gl-materials__ads.htm
-const Material glass(Color(1.5, 1.5, 1.5), Color(0.0, 0.0, 0.0),
-        Color(0.59, 0.67, 0.73), Color(0.0, 0.0, 0.0), Color(0.9, 0.9, 0.9),
+const Material glass(Color(1.5, 1.5, 1.5), Color(0, 0, 0),
+        Color(0.59, 0.67, 0.73), Color(0, 0, 0), Color(0.9, 0.9, 0.9),
         96.0,
         true, true);
 
 
-const Material desk(Color(1.5, 1.5, 1.5), Color(0.0, 0.0, 0.0),
+const Material desk(Color(1.5, 1.5, 1.5), Color(0, 0, 0),
         Color(0.4, 0.4, 0.4), Color(0.2, 0.2, 0.2), Color(0.1, 0.1, 0.1),
         32.0,
         false, false);
@@ -427,10 +458,6 @@ float degreeToRad(float degree) {
     return degree * 2.0f * PI / 360.0f;
 }
 
-float radToDegree(float rad) {
-    return rad * 360.0f / 2.0f / PI;
-}
-
 float min(float f1, float f2) {
     return f1 < f2 ? f1 : f2;
 }
@@ -439,6 +466,61 @@ float max(float f1, float f2) {
     return f1 > f2 ? f1 : f2;
 }
 
+class Camera {
+    Vector eye, lookat, up, right;
+    float width, height;
+
+public:
+    Camera() {
+    }
+
+private:
+    Vector getPosOnScreen(unsigned X, unsigned Y) {
+        // Az ernyő melyik pontja felel meg egy pixelnek?
+        float screenPosX = ((float) X + 0.5f - screenWidth / 2.0f)
+                / (screenWidth / 2.0f);
+        float screenPosY = ((float) Y + 0.5f - screenHeight / 2.0f)
+                / (screenHeight / 2.0f);
+
+        // Az ernyő is a világ része, mi a világkoordinátája a pontnak?
+        return lookat + (right * screenPosX) + (up * screenPosY);
+    }
+
+public:
+    Camera(Vector const &eye, Vector const &lookat, Vector const &up, Vector const &right, float width, float height)
+            : eye(eye), lookat(lookat), up(up), right(right), width(width), height(height) {
+    }
+
+    Ray getRay(unsigned X, unsigned Y) {
+        Ray r;
+        Vector posOnScreen = getPosOnScreen(X, Y);
+        r.p0 = eye;
+        r.v = (posOnScreen - eye).normalized();
+        return r;
+    }
+};
+
+class Light {
+    Color color;
+    Vector p;
+
+public:
+
+    Light() {
+    }
+
+    Light(Color const &color, Vector const &p) : color(color), p(p) {
+    }
+
+    Color getRad(Vector const &x) const {
+        float distance = (x - p).length();
+        return color / powf(distance, 2) / 10;
+    }
+
+    Vector const &getP() const {
+        return p;
+    }
+};
 
 class Object {
 protected:
@@ -458,6 +540,45 @@ public:
 
     virtual Color getTextureModifier(Vector const &at) const {
         return Color(1.0, 1.0, 1.0);
+    }
+};
+
+class Circle : public Object {
+    Vector center, normal;
+    float radius;
+
+public:
+
+    Circle(Material const &material, Vector const &p0, Vector const &n, float const &radius)
+            : Object(material), center(p0), normal(n.normalized()), radius(radius) {
+    }
+
+    Intersection intersect(Ray const &ray) {
+        Intersection i;
+        float disc = normal * (ray.v.normalized());
+        if (disc <= NEAR_ZERO && disc >= 0.0f)
+            return noIntersection;
+        float t = -1.0f * (normal * (ray.p0 - center)) * (1.0f / disc);
+        if (t > NEAR_ZERO) {
+            Vector intersectPos = ray.p0 + (ray.v.normalized() * t);
+            if ((intersectPos - center).length() <= radius) {
+                i.real = true;
+                i.normal = normal;
+                i.rayT = t;
+                i.pos = intersectPos;
+                return i;
+            }
+        }
+        return noIntersection;
+    }
+
+    Color getTextureModifier(Vector const &at) const {
+        float dist = (at - center).length();
+        float stripeWidth = 0.2;
+        int stripeNr = (int) floorf(dist / stripeWidth);
+        if (stripeNr % 2 == 0)
+            return Color(1.0, 1.0, 1.0);
+        return Color(6.0, 6.0, 6.0);
     }
 };
 
@@ -619,11 +740,11 @@ public:
             float h = 0.0f,
             float i = 0.0f,
             float j = 0.0f,
-            Vector const &stretch = Vector(1.0, 1.0, 1.0),
-            Vector const &offset = Vector(0.0, 0.0, 0.0),
+            Vector const &stretch = Vector(1, 1, 1),
+            Vector const &offset = Vector(0, 0, 0),
             float angle = 0.0f,
             bool isLimited = false,
-            Vector const &limitFrom = Vector(0.0, 0.0, 0.0),
+            Vector const &limitFrom = Vector(0, 0, 0),
             float limit = 1.0
     )
             : Object(material), limitFrom(limitFrom), limit(limit), isLimited(isLimited) {
@@ -660,56 +781,6 @@ public:
 
 };
 
-class Sphere : public QuadricSurface {
-public:
-    Sphere(Material const &material, Vector const &center, float radius)
-            : QuadricSurface(material,
-            1, 0, 0, 0, 1, 0, 0, 1, 0, -1,
-            Vector(radius, radius, radius),
-            center
-    ) {
-    }
-};
-
-class Circle : public Object {
-    Vector center, normal;
-    float radius;
-
-public:
-
-    Circle(Material const &material, Vector const &p0, Vector const &n, float const &radius)
-            : Object(material), center(p0), normal(n.normalized()), radius(radius) {
-    }
-
-    Intersection intersect(Ray const &ray) {
-        Intersection i;
-        float disc = normal * (ray.v.normalized());
-        if (disc == 0.0)
-            return noIntersection;
-        float t = -1.0f * (normal * (ray.p0 - center)) * (1.0f / disc);
-        if (t > NEAR_ZERO) {
-            Vector intersectPos = ray.p0 + (ray.v.normalized() * t);
-            if ((intersectPos - center).length() <= radius) {
-                i.real = true;
-                i.normal = normal;
-                i.rayT = t;
-                i.pos = intersectPos;
-                return i;
-            }
-        }
-        return noIntersection;
-    }
-
-    Color getTextureModifier(Vector const &at) const {
-        float dist = (at - center).length();
-        float stripeWidth = 0.2; //radius / 800.0f;
-        int stripeNr = (int) floorf(dist / stripeWidth);
-        if (stripeNr % 2 == 0)
-            return Color(1.0, 1.0, 1.0);
-        return Color(6.0, 6.0, 6.0);
-    }
-};
-
 class Cylinder : public QuadricSurface {
 public:
 
@@ -726,7 +797,7 @@ public:
             clockWiseAngle,
             true) {
         float counterClockWiseAngle = 2 * PI - (clockWiseAngle - degreeToRad(90.0f));
-        Vector direction = Vector(cosf(counterClockWiseAngle), sinf(counterClockWiseAngle), 0.0f);
+        Vector direction = Vector(cosf(counterClockWiseAngle), sinf(counterClockWiseAngle), 0);
         direction = direction.normalized();
         Vector top = center + (direction * height);
         Vector bottom = center;
@@ -792,7 +863,7 @@ public:
         Ray r;
         r.p0 = near;
         float counterClockWiseAngle = 2 * PI - (clockWiseAngle - degreeToRad(90.0f));
-        Vector direction = Vector(cosf(counterClockWiseAngle), sinf(counterClockWiseAngle), 0.0f).normalized();
+        Vector direction = Vector(cosf(counterClockWiseAngle), sinf(counterClockWiseAngle), 0).normalized();
         Vector middle = center + (direction * height / 2.0f);
         r.v = (middle - near).normalized();
         return intersect(r);
@@ -800,7 +871,7 @@ public:
 };
 
 struct CylinderCactus {
-    Object *objects[3];
+    Object *objects[6];
     size_t objectSize;
 
     CylinderCactus() {
@@ -809,8 +880,6 @@ struct CylinderCactus {
 
     void setPos(Vector bottomCenter, float radius, float height) {
         objects[objectSize++] = new Cylinder(glass, bottomCenter, radius, height, degreeToRad(0.0f));
-        //objects[objectSize++] = new Circle(gold, bottomCenter, Vector(0,1,0), radius);
-        //objects[objectSize++] = new Circle(glass, bottomCenter + Vector(0, height, 0), Vector(0,1,0), radius);
 
         bottomCenter = Vector(bottomCenter.x + radius, bottomCenter.y + height * 0.6f, bottomCenter.z);
         radius *= 0.45f;
@@ -820,7 +889,7 @@ struct CylinderCactus {
         bottomCenter = Vector(bottomCenter.x + height * 0.7f, bottomCenter.y + radius, bottomCenter.z);
         radius *= 0.7f;
         height *= 0.45f;
-        objects[objectSize++] = new Cylinder(glass, bottomCenter, radius, height, degreeToRad(0.0f));
+        objects[objectSize++] = new Cylinder(glass, bottomCenter, radius, height, degreeToRad(0));
     }
 } cylinderCactus;
 
@@ -836,7 +905,7 @@ struct EllipsoidCactus {
         // középpont és méretezés megadása
         Vector middle = bottomPoint + Vector(0, height / 2.0f, 0);
         Vector size = Vector(height / 4.0f, height / 2.0f, height / 4.0f);
-        Ellipsoid *e = new Ellipsoid(gold, middle, size, degreeToRad(0.0f));
+        Ellipsoid *e = new Ellipsoid(gold, middle, size, degreeToRad(0));
         objects[objectSize++] = e;
 
         // a nagy tengelyre merőleges, jobbra néző tengely meghatározása
@@ -844,7 +913,7 @@ struct EllipsoidCactus {
         //a test leginkább jobboldali pontja
         Vector mostRightPoint = middle + (smallerAxis * height / 4.0f);
         // leginkább jobboldali ponttól felfele kijelölünk egy pontot, ehhez közeli metszéspontot keresünk
-        Vector pointNearSurface = mostRightPoint + Vector(0.1f, height * 0.4f, 0.0f);
+        Vector pointNearSurface = mostRightPoint + Vector(0.1f, height * 0.4f, 0);
         //a metszéspont lesz az új ellipszoid alja, a metszés normálvekotra pedig a tengelye
         Intersection i = e->findSurfacePointNear(pointNearSurface);
         Vector longestAxis = i.normal.normalized();
@@ -857,13 +926,13 @@ struct EllipsoidCactus {
         objects[objectSize++] = e;
 
         smallerAxis = Vector(0, 0, 1) % longestAxis;
-        Vector mostTopPoint = middle + (smallerAxis * height / 4.0f);
-        pointNearSurface = mostTopPoint + (longestAxis * height * 0.3);
+        Vector middleTopPoint = middle + (smallerAxis * height / 4.0f);
+        pointNearSurface = middleTopPoint - (longestAxis * height * 0.3);
         i = e->findSurfacePointNear(pointNearSurface);
         longestAxis = i.normal.normalized();
-        angle = acosf(longestAxis * Vector(0, 1, 0));
+        angle = -acosf(longestAxis * Vector(0, 1, 0));
         bottomPoint = i.pos;
-        height *= 0.4;
+        height *= 0.65;
         middle = bottomPoint + (longestAxis * height / 2.0f);
         size = Vector(height / 4.0f, height / 2.0f, height / 4.0f);
         e = new Ellipsoid(gold, middle, size, angle);
@@ -880,12 +949,11 @@ struct ParaboloidCactus {
     }
 
     void setPos(Vector bottomPoint, float radiusOnTop, float height) {
-        Paraboloid *p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, degreeToRad(0.0f));
+        Paraboloid *p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, degreeToRad(0));
         objects[objectSize++] = p;
 
         Vector topLeftPoint = bottomPoint + (Vector(0, 1, 0) * height) - (Vector(1, 0, 0) * radiusOnTop);
         Vector pointNearSurface = topLeftPoint - Vector(0, height * 0.6f, 0);
-        //a metszéspont lesz az új paraboloid alja, a metszés normálvekotra pedig a tengelye
         Intersection i = p->findSurfacePointNear(pointNearSurface);
         Vector axis = i.normal.normalized();
         float angle = -acosf(axis * Vector(0, 1, 0));
@@ -908,62 +976,6 @@ struct ParaboloidCactus {
         objects[objectSize++] = p;
     }
 } paraboloidCactus;
-
-class Camera {
-    Vector eye, lookat, up, right;
-    float width, height;
-
-public:
-    Camera() {
-    }
-
-private:
-    Vector getPosOnScreen(unsigned X, unsigned Y) {
-        // Az ernyő melyik pontja felel meg egy pixelnek?
-        float screenPosX = ((float) X + 0.5f - screenWidth / 2.0f)
-                / (screenWidth / 2.0f);
-        float screenPosY = ((float) Y + 0.5f - screenHeight / 2.0f)
-                / (screenHeight / 2.0f);
-
-        // Az ernyő is a világ része, mi a világkoordinátája a pontnak?
-        return lookat + (right * screenPosX) + (up * screenPosY);
-    }
-
-public:
-    Camera(Vector const &eye, Vector const &lookat, Vector const &up, Vector const &right, float width, float height)
-            : eye(eye), lookat(lookat), up(up), right(right), width(width), height(height) {
-    }
-
-    Ray getRay(unsigned X, unsigned Y) {
-        Ray r;
-        Vector posOnScreen = getPosOnScreen(X, Y);
-        r.p0 = eye;
-        r.v = (posOnScreen - eye).normalized();
-        return r;
-    }
-};
-
-class Light {
-    Color color;
-    Vector p;
-
-public:
-
-    Light() {
-    }
-
-    Light(Color const &color, Vector const &p) : color(color), p(p) {
-    }
-
-    Color getRad(Vector const &x) const {
-        float distance = (x - p).length();
-        return color / powf(distance, 2) / 10;
-    }
-
-    Vector const &getP() const {
-        return p;
-    }
-};
 
 class Scene {
     Object *objects[maxObjectCount];
@@ -998,7 +1010,7 @@ class Scene {
         if (material.isIsReflective()) {
             Ray reflectedRay;
             reflectedRay.v = material.reflect(hit.normal, ray.v);
-            reflectedRay.p0 = hit.pos;
+            reflectedRay.p0 = hit.pos + (reflectedRay.v * NEAR_ZERO);
             Color Fresnel = material.Fresnel(hit.normal, ray.v);
             color += Fresnel * trace(reflectedRay, d + 1);
         }
@@ -1012,7 +1024,7 @@ class Scene {
         if (material.isIsRefractive()) {
             Ray refractedRay;
             refractedRay.v = material.refract(hit.normal, ray.v);
-            refractedRay.p0 = hit.pos;
+            refractedRay.p0 = hit.pos + (refractedRay.v * NEAR_ZERO);
             Color Fresnel = material.Fresnel(hit.normal, ray.v);
             Color one = Color(1, 1, 1);
             color += (one - Fresnel) * trace(refractedRay, d + 1);
@@ -1064,8 +1076,8 @@ public:
     }
 
     void render() {
-        for (size_t Y = 0; Y < screenHeight; Y++)
-            for (size_t X = 0; X < screenWidth; X++) {
+        for (unsigned Y = 0; Y < screenHeight; Y++)
+            for (unsigned X = 0; X < screenWidth; X++) {
                 Ray ray = camera->getRay(X, Y);
                 Color color = trace(ray, 0);
                 //color = color/(Color(1,1,1) + color);
@@ -1080,7 +1092,7 @@ public:
         Vector paraboloidPos(-1.0f, -1.0f, 1.5);
 
         // asztal
-        add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 6.0));
+        add(new Circle(desk, Vector(0, -1.0f, 0), Vector(0, 1, 0), 6.0));
 
         // henger-kaktusz
         cylinderCactus.setPos(cylinderPos, 0.5f, 2.0f);
@@ -1092,6 +1104,7 @@ public:
         for (size_t i = 0; i < ellipsoidCactus.objectSize; i++)
             add(ellipsoidCactus.objects[i]);
 
+        // paraboloid-kaktusz
         paraboloidCactus.setPos(paraboloidPos, 0.5f, 2.0f);
         for (size_t i = 0; i < paraboloidCactus.objectSize; i++)
             add(paraboloidCactus.objects[i]);
@@ -1099,7 +1112,7 @@ public:
 
         // fényforrások
         // hengerek találkozásánál
-        add(new Light(Color(2, 2, 5), cylinderPos + Vector(0.48, 1.0, 0.0)));
+        add(new Light(Color(2, 2, 5), cylinderPos + Vector(0.48, 1, 0)));
         // ellipszoid mögött:
         add(new Light(Color(8, 3, 3), ellipsoidPos + Vector(0.5, 3.0, 0.5)));
         // paraboloid mögött
@@ -1110,11 +1123,10 @@ public:
         //henger-lámpa
         //add(new Light(Color(2,2,5), cylinderPos + Vector(0, 1.7, 0)));
         // hiba: sugarak eltolása visszaverésnél
-        //add(new Light(Color(2,2,5), cylinderPos + Vector(0.50, 1.0, 0.0)));
+        //add(new Light(Color(2,2,5), cylinderPos + Vector(0.50, 1, 0)));
 
         // kamera
         // középen
-
         /*
          Vector lookat = Vector(0, 0, 0);
          Vector eye = Vector(0, 0, -2);
@@ -1125,7 +1137,7 @@ public:
 
         // döntve
         Vector lookat = Vector(0, 0.9, 0);
-        Vector eye = Vector(0, 1.5, -0.7);
+        Vector eye = Vector(0, 1.5, -0.7f);
         Vector right = Vector(1, 0, 0);
         Vector dir = (lookat - eye).normalized();
         Vector up = (dir % right).normalized();
