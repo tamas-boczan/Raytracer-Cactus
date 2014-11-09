@@ -96,7 +96,6 @@ struct CylinderCactus;
 struct EllipsoidCactus;
 struct ParaboloidCactus;
 
-#define FLT_MAX 10000.0f
 #define NEAR_ZERO 0.001f
 #define PI 3.14159265359f
 
@@ -211,8 +210,6 @@ struct Color {
     }
 };
 
-long matrixszorzasok = 0;
-
 class Matrix4D {
     float mx[4][4];
     size_t rowsFilled;
@@ -295,7 +292,6 @@ public:
     }
 
     Matrix4D operator*(const Matrix4D &right) const {
-        matrixszorzasok++;
         Matrix4D result;
         if (columnsFilled == right.rowsFilled) {
             result.rowsFilled = rowsFilled;
@@ -536,9 +532,9 @@ public:
         return material;
     }
 
-    virtual Intersection intersect(Ray const &ray) = 0;
+    virtual Intersection intersect(Ray const &ray) const = 0;
 
-    virtual bool intersectsBoundingVolume(Ray const &ray) = 0;
+    virtual Intersection intersectsBoundingVolume(Ray const &ray) const = 0;
 
     virtual Color getTextureModifier(Vector const &at) const {
         return Color(1.0, 1.0, 1.0);
@@ -555,7 +551,7 @@ public:
             : Object(material), center(p0), normal(n.normalized()), radius(radius) {
     }
 
-    Intersection intersect(Ray const &ray) {
+    Intersection intersect(Ray const &ray) const {
         Intersection i;
         float disc = normal * (ray.v.normalized());
         if (disc <= NEAR_ZERO && disc >= 0.0f)
@@ -574,13 +570,17 @@ public:
         return noIntersection;
     }
 
-    bool intersectsBoundingVolume(Ray const &ray) {
+    Intersection intersectsBoundingVolume(Ray const &ray) const {
         float disc = normal * (ray.v.normalized());
         if (disc <= NEAR_ZERO && disc >= 0.0f)
-            return false;
+            return noIntersection;
         float t = -1.0f * (normal * (ray.p0 - center)) * (1.0f / disc);
-        if (t > NEAR_ZERO)
-            return true;
+        if (t < NEAR_ZERO)
+            return noIntersection;
+        Intersection i;
+        i.real = true;
+        i.rayT = t;
+        return i;
     }
 
     Color getTextureModifier(Vector const &at) const {
@@ -602,16 +602,16 @@ protected :
     float limit;
     bool isLimited;
 
-    bool solveQuadraticEquation(float a, float b, float c, float *x1, float *x2) {
+    bool solveQuadraticEquation(float a, float b, float c, float *x1, float *x2) const {
         float disc = powf(b, 2.0f) - (4.0f * a * c);
-        if (disc < 0.0f || a == 0.0f)
+        if (disc < NEAR_ZERO || a == 0.0f)
             return false;
         *x1 = (-b - sqrtf(disc)) / (2.0f * a);
         *x2 = (-b + sqrtf(disc)) / (2.0f * a);
         return true;
     }
 
-    float gradX(Vector const &v) {
+    float gradX(Vector const &v) const {
         Matrix4D dir;
         dir.addRow(1, 0, 0, 0);
         Matrix4D point;
@@ -621,7 +621,7 @@ protected :
         return normalM.get(0, 0);
     }
 
-    float gradY(Vector const &v) {
+    float gradY(Vector const &v) const {
         Matrix4D dir;
         dir.addRow(0, 1, 0, 0);
         Matrix4D point;
@@ -631,7 +631,7 @@ protected :
         return normalM.get(0, 0);
     }
 
-    float gradZ(Vector const &v) {
+    float gradZ(Vector const &v) const {
         Matrix4D dir;
         dir.addRow(0, 0, 1, 0);
         Matrix4D point;
@@ -641,7 +641,7 @@ protected :
         return normalM.get(0, 0);
     }
 
-    Vector getNormal(Vector const &intersectPoint) {
+    Vector getNormal(Vector const &intersectPoint) const {
         float x = gradX(intersectPoint);
         float y = gradY(intersectPoint);
         float z = gradZ(intersectPoint);
@@ -694,13 +694,13 @@ protected :
         M = transformWith(M, offsetInvM);
     }
 
-    bool isInsideOrb(Ray const &ray, float t) {
+    bool isInsideOrb(Ray const &ray, float t) const {
         Vector pos = ray.p0 + (ray.v.normalized() * t);
         float size = (pos - limitFrom).length();
         return size < limit;
     }
 
-    Intersection chooseValidIntersection(float t1, float t2, Ray const &ray) {
+    Intersection chooseValidIntersection(float t1, float t2, Ray const &ray) const {
         float t = min(t1, t2);
         if (t > NEAR_ZERO && !isLimited) {
             Intersection i;
@@ -769,7 +769,7 @@ public:
         transform(Q, stretch, offset, angle);
     }
 
-    Intersection intersect(Ray const &ray) {
+    Intersection intersect(Ray const &ray) const {
         Matrix4D p, v;
         p.addRow(ray.p0.x, ray.p0.y, ray.p0.z, 1.0);
         v.addRow(ray.v.x, ray.v.y, ray.v.z, 0.0);
@@ -790,7 +790,7 @@ public:
         return chooseValidIntersection(x1, x2, ray);
     }
 
-    bool intersectsBoundingVolume(Ray const &ray) {
+    Intersection intersectsBoundingVolume(Ray const &ray) const {
         float a = powf(ray.v.x, 2) + powf(ray.v.y, 2) + powf(ray.v.z, 2);
         float b = 2 * ray.v.x * (ray.p0.x - limitFrom.x) +
                 2 * ray.v.y * (ray.p0.y - limitFrom.y) +
@@ -805,10 +805,24 @@ public:
                         limitFrom.y * ray.p0.y +
                         limitFrom.z * ray.p0.z) -
                 powf(limit, 2);
+
         float x1, x2;
-        if (solveQuadraticEquation(a, b, c, &x1, &x2) < 0)
-            return false;
-        return (x1 > NEAR_ZERO || x2 > NEAR_ZERO);
+        if (!solveQuadraticEquation(a, b, c, &x1, &x2))
+            return noIntersection;
+
+        if (x1 > NEAR_ZERO) {
+            Intersection i;
+            i.rayT = x1;
+            i.real = true;
+            return i;
+        }
+        if (x2 > NEAR_ZERO) {
+            Intersection i;
+            i.rayT = x1;
+            i.real = true;
+            return i;
+        }
+        return noIntersection;
     }
 
 };
@@ -1013,6 +1027,7 @@ struct ParaboloidCactus {
     }
 } paraboloidCactus;
 
+
 class Scene {
     Object *objects[maxObjectCount];
     Light *lights[maxLightCount];
@@ -1083,25 +1098,40 @@ class Scene {
         return color;
     }
 
+    static int compareIntersectionsByT(const void *i1, const void *i2) {
+        float t1 = ((Intersection *) i1)->rayT;
+        float t2 = ((Intersection *) i2)->rayT;
+        return t1 > t2;
+    }
+
     void findCandidates(Object **candidates, size_t &candidateNr, Ray const &ray) const {
-        for (size_t i = 0; i < objectSize; i++)
-            if (objects[i]->intersectsBoundingVolume(ray))
-                candidates[candidateNr++] = objects[i];
+        candidateNr = 0;
+        Intersection intersections[maxObjectCount];
+        size_t intNr = 0;
+        for (size_t i = 0; i < objectSize; i++) {
+            Intersection intersect = objects[i]->intersectsBoundingVolume(ray);
+            if (intersect.real) {
+                intersect.obj = objects[i];
+                intersections[intNr++] = intersect;
+            }
+        }
+        qsort(intersections, intNr, sizeof(Intersection), compareIntersectionsByT);
+        for (size_t i = 0; i < intNr; i++)
+            candidates[candidateNr++] = (Object *) intersections[i].obj;
     }
 
     Intersection intersectAll(Ray const &ray) const {
         Object *candidates[maxObjectCount];
-        size_t candidateNr = 0;
+        size_t candidateNr;
         findCandidates(candidates, candidateNr, ray);
 
-        Intersection closest;
-        closest.rayT = FLT_MAX;
-        closest.real = false;
+        Intersection closest = noIntersection;
         for (size_t i = 0; i < candidateNr; i++) {
             Intersection inters = candidates[i]->intersect(ray);
-            if (inters.real && inters.rayT < closest.rayT) {
+            if (inters.real) {
                 closest = inters;
                 closest.obj = candidates[i];
+                break;
             }
         }
         return closest;
@@ -1126,8 +1156,6 @@ public:
             for (unsigned X = 0; X < screenWidth; X++) {
                 Ray ray = camera->getRay(X, Y);
                 Color color = trace(ray, 0);
-                //color = color/(Color(1,1,1) + color);
-                // TODO: tone Mapping
                 image[Y * screenWidth + X] = color;
             }
     }
@@ -1163,13 +1191,6 @@ public:
         add(new Light(Color(8, 3, 3), ellipsoidPos + Vector(0.5, 3.0, 0.5)));
         // paraboloid mögött
         add(new Light(Color(2, 7, 2), paraboloidPos + Vector(0, 1.5, 1.5)));
-
-        // henger mögött
-        //add(new Light(Color(17, 17, 26), cylinderPos + Vector(-0.5, 2.9, 1.0)));
-        //henger-lámpa
-        //add(new Light(Color(2,2,5), cylinderPos + Vector(0, 1.7, 0)));
-        // hiba: sugarak eltolása visszaverésnél
-        //add(new Light(Color(2,2,5), cylinderPos + Vector(0.50, 1, 0)));
 
         // kamera
         // középen
@@ -1218,8 +1239,6 @@ void onDisplay() {
 
 // Billentyuzet esemenyeket lekezelo fuggveny (lenyomas)
 void onKeyboard(unsigned char key, int x, int y) {
-    if (key == 'd') glutPostRedisplay();        // d beture rajzold ujra a kepet
-
 }
 
 // Billentyuzet esemenyeket lekezelo fuggveny (felengedes)
@@ -1229,8 +1248,6 @@ void onKeyboardUp(unsigned char key, int x, int y) {
 
 // Eger esemenyeket lekezelo fuggveny
 void onMouse(int button, int state, int x, int y) {
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)   // A GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON illetve GLUT_DOWN / GLUT_UP
-        glutPostRedisplay();                         // Ilyenkor rajzold ujra a kepet
 }
 
 // Eger mozgast lekezelo fuggveny
