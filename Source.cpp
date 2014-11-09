@@ -461,6 +461,8 @@ public:
     }
 };
 
+// A kvadratikus felületek mátrixokkal való leírásának **elméletét** a Dél-Karolinai Clemson egyetem grafika tárgyának segédanyagai közül vettem:
+// http://people.cs.clemson.edu/~dhouse/courses/405/notes/quadrics.pdf
 class QuadricSurface : public Object {
 protected :
     Matrix4D Q;
@@ -820,11 +822,6 @@ struct CylinderCactus {
         height *= 0.45f;
         objects[objectSize++] = new Cylinder(glass, bottomCenter, radius, height, degreeToRad(0.0f));
     }
-
-    ~CylinderCactus() {
-        for (size_t i = 0; i < objectSize; i++)
-            delete objects[i];
-    }
 } cylinderCactus;
 
 struct EllipsoidCactus {
@@ -836,41 +833,41 @@ struct EllipsoidCactus {
     }
 
     void setPos(Vector bottomPoint, float height) {
+        // középpont és méretezés megadása
         Vector middle = bottomPoint + Vector(0, height / 2.0f, 0);
         Vector size = Vector(height / 4.0f, height / 2.0f, height / 4.0f);
         Ellipsoid *e = new Ellipsoid(gold, middle, size, degreeToRad(0.0f));
         objects[objectSize++] = e;
 
-        Vector meroleges = Vector(1, 0, 0);
-        Vector mostRightPoint = middle + (meroleges * height / 4.0f);
+        // a nagy tengelyre merőleges, jobbra néző tengely meghatározása
+        Vector smallerAxis = Vector(1, 0, 0);
+        //a test leginkább jobboldali pontja
+        Vector mostRightPoint = middle + (smallerAxis * height / 4.0f);
+        // leginkább jobboldali ponttól felfele kijelölünk egy pontot, ehhez közeli metszéspontot keresünk
         Vector pointNearSurface = mostRightPoint + Vector(0.1f, height * 0.4f, 0.0f);
+        //a metszéspont lesz az új ellipszoid alja, a metszés normálvekotra pedig a tengelye
         Intersection i = e->findSurfacePointNear(pointNearSurface);
-        Vector normal = i.normal.normalized();
-        float angle = acosf(normal * Vector(0, 1, 0));
+        Vector longestAxis = i.normal.normalized();
+        float angle = acosf(longestAxis * Vector(0, 1, 0));
         bottomPoint = i.pos;
         height *= 0.55;
-        middle = bottomPoint + (normal * height / 2.0f);
+        middle = bottomPoint + (longestAxis * height / 2.0f);
         size = Vector(height / 4.0f, height / 2.0f, height / 4.0f);
         e = new Ellipsoid(gold, middle, size, angle);
         objects[objectSize++] = e;
 
-        meroleges = Vector(0, 0, 1) % normal;
-        Vector mostTopPoint = middle + (meroleges * height / 4.0f);
-        pointNearSurface = mostTopPoint + (normal * height * 0.3);
+        smallerAxis = Vector(0, 0, 1) % longestAxis;
+        Vector mostTopPoint = middle + (smallerAxis * height / 4.0f);
+        pointNearSurface = mostTopPoint + (longestAxis * height * 0.3);
         i = e->findSurfacePointNear(pointNearSurface);
-        normal = i.normal.normalized();
-        angle = acosf(normal * Vector(0, 1, 0));
+        longestAxis = i.normal.normalized();
+        angle = acosf(longestAxis * Vector(0, 1, 0));
         bottomPoint = i.pos;
         height *= 0.4;
-        middle = bottomPoint + (normal * height / 2.0f);
+        middle = bottomPoint + (longestAxis * height / 2.0f);
         size = Vector(height / 4.0f, height / 2.0f, height / 4.0f);
         e = new Ellipsoid(gold, middle, size, angle);
         objects[objectSize++] = e;
-    }
-
-    ~EllipsoidCactus() {
-        for (size_t i = 0; i < objectSize; i++)
-            delete objects[i];
     }
 } ellipsoidCactus;
 
@@ -885,11 +882,30 @@ struct ParaboloidCactus {
     void setPos(Vector bottomPoint, float radiusOnTop, float height) {
         Paraboloid *p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, degreeToRad(0.0f));
         objects[objectSize++] = p;
-    }
 
-    ~ParaboloidCactus() {
-        for (size_t i = 0; i < objectSize; i++)
-            delete objects[i];
+        Vector topLeftPoint = bottomPoint + (Vector(0, 1, 0) * height) - (Vector(1, 0, 0) * radiusOnTop);
+        Vector pointNearSurface = topLeftPoint - Vector(0, height * 0.6f, 0);
+        //a metszéspont lesz az új paraboloid alja, a metszés normálvekotra pedig a tengelye
+        Intersection i = p->findSurfacePointNear(pointNearSurface);
+        Vector axis = i.normal.normalized();
+        float angle = -acosf(axis * Vector(0, 1, 0));
+        bottomPoint = i.pos;
+        radiusOnTop *= 0.55;
+        height *= 0.55;
+        p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, angle);
+        objects[objectSize++] = p;
+
+        Vector axisNormal = axis % Vector(0, 0, 1);
+        topLeftPoint = bottomPoint + (axis * height) + (axisNormal * radiusOnTop);
+        pointNearSurface = topLeftPoint - (axis * height * 0.2);
+        i = p->findSurfacePointNear(pointNearSurface);
+        axis = i.normal.normalized();
+        angle = -acosf(Vector(0, 1, 0) * axis);
+        bottomPoint = i.pos;
+        radiusOnTop *= 0.8;
+        height *= 0.6;
+        p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, angle);
+        objects[objectSize++] = p;
     }
 } paraboloidCactus;
 
@@ -1059,11 +1075,10 @@ public:
     }
 
     void build() {
-        Vector cylinderPos(-1.4, -0.9, 1.5);
-        Vector ellipsoidPos(0.0, -0.9, 2.0);
-        Vector paraboloidPos(1.0, -0.9, 1.0);
+        Vector ellipsoidPos(1.0, -1.0f, 2.0);
+        Vector cylinderPos(0, -1.0f, 1.2);
+        Vector paraboloidPos(-1.0f, -1.0f, 1.5);
 
-        // TODO paraboloid, fények
         // asztal
         add(new Circle(desk, Vector(0.0, -1.0, 0.0), Vector(0.0, 1.0, 0.0), 6.0));
 
@@ -1078,24 +1093,28 @@ public:
             add(ellipsoidCactus.objects[i]);
 
         paraboloidCactus.setPos(paraboloidPos, 0.5f, 2.0f);
-        add(paraboloidCactus.objects[0]);
+        for (size_t i = 0; i < paraboloidCactus.objectSize; i++)
+            add(paraboloidCactus.objects[i]);
 
 
         // fényforrások
+        // hengerek találkozásánál
+        add(new Light(Color(2, 2, 5), cylinderPos + Vector(0.48, 1.0, 0.0)));
+        // ellipszoid mögött:
+        add(new Light(Color(8, 3, 3), ellipsoidPos + Vector(0.5, 3.0, 0.5)));
+        // paraboloid mögött
+        add(new Light(Color(2, 7, 2), paraboloidPos + Vector(0, 1.5, 1.5)));
+
         // henger mögött
         //add(new Light(Color(17, 17, 26), cylinderPos + Vector(-0.5, 2.9, 1.0)));
         //henger-lámpa
         //add(new Light(Color(2,2,5), cylinderPos + Vector(0, 1.7, 0)));
-        // hengerek találkozásánál
-        add(new Light(Color(2, 2, 5), cylinderPos + Vector(0.48, 1.0, 0.0)));
-        // hiba: teljes visszaverődés?
+        // hiba: sugarak eltolása visszaverésnél
         //add(new Light(Color(2,2,5), cylinderPos + Vector(0.50, 1.0, 0.0)));
-
-        // ellipszoid mögött:
-        add(new Light(Color(12, 4, 4), ellipsoidPos + Vector(1.0, 3.0, 1.0)));
 
         // kamera
         // középen
+
         /*
          Vector lookat = Vector(0, 0, 0);
          Vector eye = Vector(0, 0, -2);
@@ -1103,7 +1122,6 @@ public:
          Vector dir = (lookat - eye).normalized();
          Vector up = (dir % right).normalized();
          */
-
 
         // döntve
         Vector lookat = Vector(0, 0.9, 0);
@@ -1115,6 +1133,14 @@ public:
         //up *= 1.5;
 
         camera = new Camera(eye, lookat, up, right, screenWidth, screenHeight);
+    }
+
+    ~Scene() {
+        for (size_t i = 0; i < lightSize; i++)
+            delete lights[i];
+        for (size_t i = 0; i < objectSize; i++)
+            delete objects[i];
+        delete camera;
     }
 } scene;
 
