@@ -291,11 +291,11 @@ public:
         for (size_t i = 0; i < rowsFilled; i++)
             for (size_t j = 0; j < columnsFilled; j++)
                 result.mx[i][j] = mx[i][j] * f;
-        matrixszorzasok++;
         return result;
     }
 
     Matrix4D operator*(const Matrix4D &right) const {
+        matrixszorzasok++;
         Matrix4D result;
         if (columnsFilled == right.rowsFilled) {
             result.rowsFilled = rowsFilled;
@@ -538,6 +538,8 @@ public:
 
     virtual Intersection intersect(Ray const &ray) = 0;
 
+    virtual bool intersectsBoundingVolume(Ray const &ray) = 0;
+
     virtual Color getTextureModifier(Vector const &at) const {
         return Color(1.0, 1.0, 1.0);
     }
@@ -570,6 +572,15 @@ public:
             }
         }
         return noIntersection;
+    }
+
+    bool intersectsBoundingVolume(Ray const &ray) {
+        float disc = normal * (ray.v.normalized());
+        if (disc <= NEAR_ZERO && disc >= 0.0f)
+            return false;
+        float t = -1.0f * (normal * (ray.p0 - center)) * (1.0f / disc);
+        if (t > NEAR_ZERO)
+            return true;
     }
 
     Color getTextureModifier(Vector const &at) const {
@@ -779,6 +790,27 @@ public:
         return chooseValidIntersection(x1, x2, ray);
     }
 
+    bool intersectsBoundingVolume(Ray const &ray) {
+        float a = powf(ray.v.x, 2) + powf(ray.v.y, 2) + powf(ray.v.z, 2);
+        float b = 2 * ray.v.x * (ray.p0.x - limitFrom.x) +
+                2 * ray.v.y * (ray.p0.y - limitFrom.y) +
+                2 * ray.v.z * (ray.p0.z - limitFrom.z);
+        float c = powf(limitFrom.x, 2) +
+                powf(limitFrom.y, 2) +
+                powf(limitFrom.z, 2) +
+                powf(ray.p0.x, 2) +
+                powf(ray.p0.y, 2) +
+                powf(ray.p0.z, 2) -
+                2 * (limitFrom.x * ray.p0.x +
+                        limitFrom.y * ray.p0.y +
+                        limitFrom.z * ray.p0.z) -
+                powf(limit, 2);
+        float x1, x2;
+        if (solveQuadraticEquation(a, b, c, &x1, &x2) < 0)
+            return false;
+        return (x1 > NEAR_ZERO || x2 > NEAR_ZERO);
+    }
+
 };
 
 class Cylinder : public QuadricSurface {
@@ -822,8 +854,12 @@ public:
             1, 0, 0, 0, 1, 0, 0, 1, 0, -1,
             size,
             center,
-            angle
+            angle,
+            false,
+            center
     ), center(center) {
+        float maxXY = max(size.x, size.y);
+        limit = max(maxXY, size.z);
     }
 
     Intersection findSurfacePointNear(Vector near) {
@@ -1047,15 +1083,25 @@ class Scene {
         return color;
     }
 
+    void findCandidates(Object **candidates, size_t &candidateNr, Ray const &ray) const {
+        for (size_t i = 0; i < objectSize; i++)
+            if (objects[i]->intersectsBoundingVolume(ray))
+                candidates[candidateNr++] = objects[i];
+    }
+
     Intersection intersectAll(Ray const &ray) const {
+        Object *candidates[maxObjectCount];
+        size_t candidateNr = 0;
+        findCandidates(candidates, candidateNr, ray);
+
         Intersection closest;
         closest.rayT = FLT_MAX;
         closest.real = false;
-        for (size_t i = 0; i < objectSize; i++) {
-            Intersection inters = objects[i]->intersect(ray);
+        for (size_t i = 0; i < candidateNr; i++) {
+            Intersection inters = candidates[i]->intersect(ray);
             if (inters.real && inters.rayT < closest.rayT) {
                 closest = inters;
-                closest.obj = objects[i];
+                closest.obj = candidates[i];
             }
         }
         return closest;
