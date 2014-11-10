@@ -3,6 +3,9 @@ OpenGL-Raytracer-Cactus
 
 Raytracing homework.
 
+ ![Screenshot](screenshot.png "Screenshot")
+
+
 Feladat
 ------------
 Készítsen csendéletet,
