@@ -1,48 +1,3 @@
-//=============================================================================================
-// Szamitogepes grafika hazi feladat keret. Ervenyes 2014-tol.          
-// A //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// sorokon beluli reszben celszeru garazdalkodni, mert a tobbit ugyis toroljuk. 
-// A beadott program csak ebben a fajlban lehet, a fajl 1 byte-os ASCII karaktereket tartalmazhat. 
-// Tilos:
-// - mast "beincludolni", illetve mas konyvtarat hasznalni
-// - faljmuveleteket vegezni (printf is fajlmuvelet!)
-// - new operatort hivni az onInitialization függvényt kivéve, a lefoglalt adat korrekt felszabadítása nélkül 
-// - felesleges programsorokat a beadott programban hagyni
-// - tovabbi kommenteket a beadott programba irni a forrasmegjelolest kommentjeit kiveve
-// ---------------------------------------------------------------------------------------------
-// A feladatot ANSI C++ nyelvu forditoprogrammal ellenorizzuk, a Visual Studio-hoz kepesti elteresekrol
-// es a leggyakoribb hibakrol (pl. ideiglenes objektumot nem lehet referencia tipusnak ertekul adni)
-// a hazibeado portal ad egy osszefoglalot.
-// ---------------------------------------------------------------------------------------------
-// A feladatmegoldasokban csak olyan gl/glu/glut fuggvenyek hasznalhatok, amelyek
-// 1. Az oran a feladatkiadasig elhangzottak ES (logikai AND muvelet)
-// 2. Az alabbi listaban szerepelnek:  
-// Rendering pass: glBegin, glVertex[2|3]f, glColor3f, glNormal3f, glTexCoord2f, glEnd, glDrawPixels
-// Transzformaciok: glViewport, glMatrixMode, glLoadIdentity, glMultMatrixf, gluOrtho2D, 
-// glTranslatef, glRotatef, glScalef, gluLookAt, gluPerspective, glPushMatrix, glPopMatrix,
-// Illuminacio: glMaterialfv, glMaterialfv, glMaterialf, glLightfv
-// Texturazas: glGenTextures, glBindTexture, glTexParameteri, glTexImage2D, glTexEnvi, 
-// Pipeline vezerles: glShadeModel, glEnable/Disable a kovetkezokre:
-// GL_LIGHTING, GL_NORMALIZE, GL_DEPTH_TEST, GL_CULL_FACE, GL_TEXTURE_2D, GL_BLEND, GL_LIGHT[0..7]
-//
-// NYILATKOZAT
-// ---------------------------------------------------------------------------------------------
-// Nev    : Boczán Tamás
-// Neptun : A5X61F
-// ---------------------------------------------------------------------------------------------
-// ezennel kijelentem, hogy a feladatot magam keszitettem, es ha barmilyen segitseget igenybe vettem vagy 
-// mas szellemi termeket felhasznaltam, akkor a forrast es az atvett reszt kommentekben egyertelmuen jeloltem. 
-// A forrasmegjeloles kotelme vonatkozik az eloadas foliakat es a targy oktatoi, illetve a 
-// grafhazi doktor tanacsait kiveve barmilyen csatornan (szoban, irasban, Interneten, stb.) erkezo minden egyeb 
-// informaciora (keplet, program, algoritmus, stb.). Kijelentem, hogy a forrasmegjelolessel atvett reszeket is ertem, 
-// azok helyessegere matematikai bizonyitast tudok adni. Tisztaban vagyok azzal, hogy az atvett reszek nem szamitanak
-// a sajat kontribucioba, igy a feladat elfogadasarol a tobbi resz mennyisege es minosege alapjan szuletik dontes.  
-// Tudomasul veszem, hogy a forrasmegjeloles kotelmenek megsertese eseten a hazifeladatra adhato pontokat 
-// negativ elojellel szamoljak el es ezzel parhuzamosan eljaras is indul velem szemben.
-//=============================================================================================
-
-#define _USE_MATH_DEFINES
-
 #include <math.h>
 #include <stdlib.h>
 
@@ -56,40 +11,25 @@
 #endif
 
 #include <GL/gl.h>                                                                                                                                                                                                                
-#include <GL/glu.h>                                                                                                                                                                                                               
-#include <GL/glut.h>                                                                                                                                                                                                              
+#include <GL/glut.h>
 
 #endif
 
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Innentol modosithatod...
 struct Vector;
 struct Color;
-
 class Matrix4D;
-
 struct Ray;
 struct Intersection;
 
 class Material;
-
 class Camera;
-
 class Light;
-
 class Scene;
-
 class Object;
-
 class QuadricSurface;
-
 class Circle;
-
 class Cylinder;
-
 class Ellipsoid;
-
 class Paraboloid;
 
 struct CylinderCactus;
@@ -397,11 +337,11 @@ public:
         return ambient;
     }
 
-    bool isIsReflective() const {
+    bool isReflective() const {
         return reflective;
     }
 
-    bool isIsRefractive() const {
+    bool isRefractive() const {
         return refractive;
     }
 };
@@ -411,7 +351,7 @@ const int screenHeight = 600;
 
 const size_t maxObjectCount = 20;
 const size_t maxLightCount = 3;
-const unsigned recursionMax = 6;
+const unsigned recursionMax = 5;
 
 const Color worldAmbient = Color(0.2, 0.2, 0.2);
 const Color ambientSky = Color(0.3, 0.5, 0.7);
@@ -552,14 +492,14 @@ public:
     }
 
     Intersection intersect(Ray const &ray) const {
-        Intersection i;
-        float disc = normal * (ray.v.normalized());
+        float disc = normal * (ray.v);
         if (disc <= NEAR_ZERO && disc >= 0.0f)
             return noIntersection;
         float t = -1.0f * (normal * (ray.p0 - center)) * (1.0f / disc);
         if (t > NEAR_ZERO) {
-            Vector intersectPos = ray.p0 + (ray.v.normalized() * t);
+            Vector intersectPos = ray.p0 + (ray.v * t);
             if ((intersectPos - center).length() <= radius) {
+                Intersection i;
                 i.real = true;
                 i.normal = normal;
                 i.rayT = t;
@@ -571,7 +511,7 @@ public:
     }
 
     Intersection intersectsBoundingVolume(Ray const &ray) const {
-        float disc = normal * (ray.v.normalized());
+        float disc = normal * (ray.v);
         if (disc <= NEAR_ZERO && disc >= 0.0f)
             return noIntersection;
         float t = -1.0f * (normal * (ray.p0 - center)) * (1.0f / disc);
@@ -588,8 +528,8 @@ public:
         float stripeWidth = 0.2;
         int stripeNr = (int) floorf(dist / stripeWidth);
         if (stripeNr % 2 == 0)
-            return Color(1.0, 1.0, 1.0);
-        return Color(6.0, 6.0, 6.0);
+            return Color(0.7, 0.7, 0.7);
+        return Color(9, 9, 9);
     }
 };
 
@@ -695,7 +635,7 @@ protected :
     }
 
     bool isInsideOrb(Ray const &ray, float t) const {
-        Vector pos = ray.p0 + (ray.v.normalized() * t);
+        Vector pos = ray.p0 + (ray.v * t);
         float size = (pos - limitFrom).length();
         return size < limit;
     }
@@ -706,7 +646,7 @@ protected :
             Intersection i;
             i.rayT = t;
             i.real = true;
-            i.pos = ray.p0 + (ray.v.normalized() * t);
+            i.pos = ray.p0 + (ray.v * t);
             i.normal = getNormal(i.pos);
             if (ray.v * i.normal > NEAR_ZERO)
                 i.normal *= -1.0f;
@@ -717,7 +657,7 @@ protected :
             Intersection i;
             i.rayT = t;
             i.real = true;
-            i.pos = ray.p0 + (ray.v.normalized() * t);
+            i.pos = ray.p0 + (ray.v * t);
             i.normal = getNormal(i.pos);
             if (ray.v * i.normal > NEAR_ZERO)
                 i.normal *= -1.0f;
@@ -729,7 +669,7 @@ protected :
             Intersection i;
             i.rayT = t;
             i.real = true;
-            i.pos = ray.p0 + (ray.v.normalized() * t);
+            i.pos = ray.p0 + (ray.v * t);
             i.normal = getNormal(i.pos);
             if (ray.v * i.normal > NEAR_ZERO)
                 i.normal *= -1.0f;
@@ -1035,10 +975,14 @@ class Scene {
     Camera *camera;
 
     Color directIllumination(Ray const &ray, Intersection const &hit) const {
-        Color color = hit.obj->getMaterial().getAmbient() * worldAmbient;
+        Color color;
+        Object const *obj = hit.obj;
+        Material material = obj->getMaterial();
+        if (!material.isReflective())
+            color = material.getAmbient() * worldAmbient;
+
         Vector x = hit.pos;
         Vector N = hit.normal.normalized();
-
         for (size_t i = 0; i < lightSize; i++) {
             Ray shadowRay;
             shadowRay.p0 = x;
@@ -1047,8 +991,8 @@ class Scene {
             Vector y = shadowHit.pos;
             if (!shadowHit.real ||
                     ((x - y).length() > (x - lights[i]->getP()).length())) {
-                Vector V = ray.v.normalized() * (-1.0f);
-                Vector L = shadowRay.v.normalized();
+                Vector V = ray.v * (-1.0f);
+                Vector L = shadowRay.v;
                 color += hit.obj->getMaterial().reflRadiance(L, N, V, lights[i]->getRad(x));
             }
         }
@@ -1058,7 +1002,7 @@ class Scene {
     Color reflectColor(Intersection const &hit, Ray const &ray, int d) const {
         Color color(0, 0, 0);
         Material material = hit.obj->getMaterial();
-        if (material.isIsReflective()) {
+        if (material.isReflective()) {
             Ray reflectedRay;
             reflectedRay.v = material.reflect(hit.normal, ray.v);
             reflectedRay.p0 = hit.pos + (reflectedRay.v * NEAR_ZERO);
@@ -1072,7 +1016,7 @@ class Scene {
         Color color(0, 0, 0);
         Material material = hit.obj->getMaterial();
 
-        if (material.isIsRefractive()) {
+        if (material.isRefractive()) {
             Ray refractedRay;
             refractedRay.v = material.refract(hit.normal, ray.v);
             refractedRay.p0 = hit.pos + (refractedRay.v * NEAR_ZERO);
@@ -1188,9 +1132,9 @@ public:
         // hengerek találkozásánál
         add(new Light(Color(2, 2, 5), cylinderPos + Vector(0.48, 1, 0)));
         // ellipszoid mögött:
-        add(new Light(Color(8, 3, 3), ellipsoidPos + Vector(0.5, 3.0, 0.5)));
+        add(new Light(Color(12, 2, 2), ellipsoidPos + Vector(0.5, 3.0, 0.5)));
         // paraboloid mögött
-        add(new Light(Color(2, 7, 2), paraboloidPos + Vector(0, 1.5, 1.5)));
+        add(new Light(Color(8, 12, 8), paraboloidPos + Vector(0, 2.0, 1.5)));
 
         // kamera
         // középen
@@ -1237,55 +1181,18 @@ void onDisplay() {
 
 }
 
-// Billentyuzet esemenyeket lekezelo fuggveny (lenyomas)
-void onKeyboard(unsigned char key, int x, int y) {
-}
-
-// Billentyuzet esemenyeket lekezelo fuggveny (felengedes)
-void onKeyboardUp(unsigned char key, int x, int y) {
-
-}
-
-// Eger esemenyeket lekezelo fuggveny
-void onMouse(int button, int state, int x, int y) {
-}
-
-// Eger mozgast lekezelo fuggveny
-void onMouseMotion(int x, int y) {
-
-}
-
-// `Idle' esemenykezelo, jelzi, hogy az ido telik, az Idle esemenyek frekvenciajara csak a 0 a garantalt minimalis ertek
-void onIdle() {
-}
-
-// ...Idaig modosithatod
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// A C++ program belepesi pontja, a main fuggvenyt mar nem szabad bantani
 int main(int argc, char **argv) {
     glutInit(&argc, argv);                // GLUT inicializalasa
     glutInitWindowSize(600, 600);            // Alkalmazas ablak kezdeti merete 600x600 pixel
     glutInitWindowPosition(100, 100);            // Az elozo alkalmazas ablakhoz kepest hol tunik fel
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);    // 8 bites R,G,B,A + dupla buffer + melyseg buffer
 
-    glutCreateWindow("Grafika hazi feladat");        // Alkalmazas ablak megszuletik es megjelenik a kepernyon
-
-    glMatrixMode(GL_MODELVIEW);                // A MODELVIEW transzformaciot egysegmatrixra inicializaljuk
-    glLoadIdentity();
-    glMatrixMode(GL_PROJECTION);            // A PROJECTION transzformaciot egysegmatrixra inicializaljuk
-    glLoadIdentity();
+    glutCreateWindow("Cactus");        // Alkalmazas ablak megszuletik es megjelenik a kepernyon
 
     onInitialization();                    // Az altalad irt inicializalast lefuttatjuk
 
 
     glutDisplayFunc(onDisplay);                // Esemenykezelok regisztralasa
-    glutMouseFunc(onMouse);
-    //glutIdleFunc(onIdle);
-    glutKeyboardFunc(onKeyboard);
-    glutKeyboardUpFunc(onKeyboardUp);
-    glutMotionFunc(onMouseMotion);
-
     glutMainLoop();                    // Esemenykezelo hurok
 
 
