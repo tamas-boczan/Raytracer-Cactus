@@ -354,7 +354,7 @@ const size_t maxLightCount = 3;
 const unsigned recursionMax = 5;
 
 const Color worldAmbient = Color(0.2, 0.2, 0.2);
-const Color ambientSky = Color(0.3, 0.5, 0.7);
+const Color ambientSky = Color(0.36, 0.6, 0.84);
 
 Color image[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
 
