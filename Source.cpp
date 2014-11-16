@@ -42,9 +42,12 @@ struct ParaboloidCactus;
 #define NEAR_ZERO 0.001f
 #define PI 3.14159265359f
 
+const unsigned timeSegments = 15;
+const unsigned maxFrame = timeSegments * 16;
+const unsigned cameraRounds = 3;
+const unsigned framesPerSegment = maxFrame / timeSegments;
 unsigned currentFrame;
-const unsigned maxFrame = 6;
-const unsigned cameraRounds = 2;
+unsigned currentSegment;
 
 
 //--------------------------------------------------------
@@ -879,15 +882,45 @@ struct CylinderCactus {
     void setPos(Vector bottomCenter, float radius, float height) {
         objects[objectSize++] = new Cylinder(glass, bottomCenter, radius, height, degreeToRad(0.0f));
 
-        bottomCenter = Vector(bottomCenter.x + radius, bottomCenter.y + height * 0.6f, bottomCenter.z);
-        radius *= 0.45f;
-        height *= 0.45f;
-        objects[objectSize++] = new Cylinder(glass, bottomCenter, radius, height, degreeToRad(90.0f));
+        float fullMiddleHeight = height * 0.45f;
+        float fullMiddleRadius = radius * 0.45f;
+        float fullTopHeight = fullMiddleHeight * 0.45f;
+        float fullTopRadius = fullMiddleRadius * 0.7f;
 
-        bottomCenter = Vector(bottomCenter.x + height * 0.7f, bottomCenter.y + radius, bottomCenter.z);
-        radius *= 0.7f;
-        height *= 0.45f;
-        objects[objectSize++] = new Cylinder(glass, bottomCenter, radius, height, degreeToRad(0));
+        float currentMiddleRadius = fullMiddleRadius;
+        float currentMiddleHeight = fullMiddleHeight;
+        float currentTopHeight = fullTopHeight;
+        float currentTopRadius = fullTopRadius;
+
+        if (currentSegment >= 3) {
+            if (currentSegment <= 6) {
+                unsigned growingStartFrame = 3 * framesPerSegment;
+                unsigned growingFrameInterval = currentFrame - growingStartFrame;
+
+                float middleHeightGrowPerFrame = fullMiddleHeight / 4.0f / framesPerSegment;
+                float middleRadiusGrowPerFrame = fullMiddleRadius / 4.0f / framesPerSegment;
+
+                currentMiddleHeight = middleHeightGrowPerFrame * (float) growingFrameInterval;
+                currentMiddleRadius = middleRadiusGrowPerFrame * (float) growingFrameInterval;
+            }
+            bottomCenter = Vector(bottomCenter.x + radius, bottomCenter.y + height * 0.6f, bottomCenter.z);
+            objects[objectSize++] = new Cylinder(glass, bottomCenter, currentMiddleRadius, currentMiddleHeight, degreeToRad(90.0f));
+        }
+
+        if (currentSegment >= 6) {
+            if (currentSegment <= 9) {
+                unsigned growingStartFrame = 6 * framesPerSegment;
+                unsigned growingFrameInterval = currentFrame - growingStartFrame;
+
+                float topHeightGrowPerFrame = fullTopHeight / 4.0f / framesPerSegment;
+                float topRadiusGrowPerFrame = fullTopRadius / 4.0f / framesPerSegment;
+
+                currentTopHeight = topHeightGrowPerFrame * (float) growingFrameInterval;
+                currentTopRadius = topRadiusGrowPerFrame * (float) growingFrameInterval;
+            }
+            bottomCenter = Vector(bottomCenter.x + currentMiddleHeight * 0.7f, bottomCenter.y + currentMiddleRadius, bottomCenter.z);
+            objects[objectSize++] = new Cylinder(glass, bottomCenter, currentTopRadius, currentTopHeight, degreeToRad(0));
+        }
     }
 };
 
@@ -906,35 +939,77 @@ struct EllipsoidCactus {
         Ellipsoid *e = new Ellipsoid(gold, middle, size, degreeToRad(0));
         objects[objectSize++] = e;
 
-        // a nagy tengelyre merőleges, jobbra néző tengely meghatározása
-        Vector smallerAxis = Vector(1, 0, 0);
-        //a test leginkább jobboldali pontja
-        Vector mostRightPoint = middle + (smallerAxis * height / 4.0f);
-        // leginkább jobboldali ponttól felfele kijelölünk egy pontot, ehhez közeli metszéspontot keresünk
-        Vector pointNearSurface = mostRightPoint + Vector(0.1f, height * 0.4f, 0);
-        //a metszéspont lesz az új ellipszoid alja, a metszés normálvekotra pedig a tengelye
-        Intersection i = e->findSurfacePointNear(pointNearSurface);
-        Vector longestAxis = i.normal.normalized();
-        float angle = acosf(longestAxis * Vector(0, 1, 0));
-        bottomPoint = i.pos;
-        height *= 0.55;
-        middle = bottomPoint + (longestAxis * height / 2.0f);
-        size = Vector(height / 4.0f, height / 2.0f, height / 4.0f);
-        e = new Ellipsoid(gold, middle, size, angle);
-        objects[objectSize++] = e;
+        float fullMiddleHeight = height * 0.55f;
+        float fullTopHeight = fullMiddleHeight * 0.65f;
+        float currentMiddleHeight = fullMiddleHeight;
+        float currentTopHeight = fullTopHeight;
 
-        smallerAxis = Vector(0, 0, 1) % longestAxis;
-        Vector middleTopPoint = middle + (smallerAxis * height / 4.0f);
-        pointNearSurface = middleTopPoint - (longestAxis * height * 0.3);
-        i = e->findSurfacePointNear(pointNearSurface);
-        longestAxis = i.normal.normalized();
-        angle = -acosf(longestAxis * Vector(0, 1, 0));
-        bottomPoint = i.pos;
-        height *= 0.65;
-        middle = bottomPoint + (longestAxis * height / 2.0f);
-        size = Vector(height / 4.0f, height / 2.0f, height / 4.0f);
-        e = new Ellipsoid(gold, middle, size, angle);
-        objects[objectSize++] = e;
+        if (currentSegment >= 3 && currentSegment <= 5) {
+            // a nagy tengelyre merőleges, jobbra néző tengely meghatározása
+            Vector smallerAxis = Vector(1, 0, 0);
+            //a test leginkább jobboldali pontja
+            Vector mostRightPoint = middle + (smallerAxis * height / 4.0f);
+            // leginkább jobboldali ponttól felfele kijelölünk egy pontot, ehhez közeli metszéspontot keresünk
+            Vector pointNearSurface = mostRightPoint + Vector(0.1f, height * 0.4f, 0);
+            //a metszéspont lesz az új ellipszoid alja, a metszés normálvekotra pedig a tengelye
+            Intersection i = e->findSurfacePointNear(pointNearSurface);
+            Vector longestAxis = i.normal.normalized();
+            float angle = acosf(longestAxis * Vector(0, 1, 0));
+            bottomPoint = i.pos;
+
+            unsigned growingStartFrame = 3 * framesPerSegment;
+            unsigned growingFrameInterval = currentFrame - growingStartFrame;
+            float middleHeightGrowPerFrame = fullMiddleHeight / 4.0f / framesPerSegment;
+            currentMiddleHeight = middleHeightGrowPerFrame * (float) growingFrameInterval;
+
+            middle = bottomPoint + (longestAxis * currentMiddleHeight / 2.0f);
+            size = Vector(currentMiddleHeight / 4.0f, currentMiddleHeight / 2.0f, currentMiddleHeight / 4.0f);
+            e = new Ellipsoid(gold, middle, size, angle);
+            objects[objectSize++] = e;
+        }
+
+        if (currentSegment >= 6) {
+            if (currentSegment <= 6) {
+                unsigned growingStartFrame = 3 * framesPerSegment;
+                unsigned growingFrameInterval = currentFrame - growingStartFrame;
+                float middleHeightGrowPerFrame = fullMiddleHeight / 4.0f / framesPerSegment;
+                currentMiddleHeight = middleHeightGrowPerFrame * (float) growingFrameInterval;
+            }
+            if (currentSegment <= 9) {
+                unsigned growingStartFrame = 6 * framesPerSegment;
+                unsigned growingFrameInterval = currentFrame - growingStartFrame;
+                float topHeightGrowPerFrame = fullTopHeight / 4.0f / framesPerSegment;
+                currentTopHeight = topHeightGrowPerFrame * (float) growingFrameInterval;
+            }
+
+            // a nagy tengelyre merőleges, jobbra néző tengely meghatározása
+            Vector smallerAxis = Vector(1, 0, 0);
+            //a test leginkább jobboldali pontja
+            Vector mostRightPoint = middle + (smallerAxis * height / 4.0f);
+            // leginkább jobboldali ponttól felfele kijelölünk egy pontot, ehhez közeli metszéspontot keresünk
+            Vector pointNearSurface = mostRightPoint + Vector(0.1f, height * 0.4f, 0);
+            //a metszéspont lesz az új ellipszoid alja, a metszés normálvekotra pedig a tengelye
+            Intersection i = e->findSurfacePointNear(pointNearSurface);
+            Vector longestAxis = i.normal.normalized();
+            float angle = acosf(longestAxis * Vector(0, 1, 0));
+            bottomPoint = i.pos;
+            middle = bottomPoint + (longestAxis * currentMiddleHeight / 2.0f);
+            size = Vector(currentMiddleHeight / 4.0f, currentMiddleHeight / 2.0f, currentMiddleHeight / 4.0f);
+            e = new Ellipsoid(gold, middle, size, angle);
+            objects[objectSize++] = e;
+
+            smallerAxis = Vector(0, 0, 1) % longestAxis;
+            Vector middleTopPoint = middle + (smallerAxis * currentMiddleHeight / 4.0f);
+            pointNearSurface = middleTopPoint - (longestAxis * currentMiddleHeight * 0.3);
+            i = e->findSurfacePointNear(pointNearSurface);
+            longestAxis = i.normal.normalized();
+            angle = -acosf(longestAxis * Vector(0, 1, 0));
+            bottomPoint = i.pos;
+            middle = bottomPoint + (longestAxis * currentTopHeight / 2.0f);
+            size = Vector(currentTopHeight / 4.0f, currentTopHeight / 2.0f, currentTopHeight / 4.0f);
+            e = new Ellipsoid(gold, middle, size, angle);
+            objects[objectSize++] = e;
+        }
     }
 };
 
@@ -950,28 +1025,70 @@ struct ParaboloidCactus {
         Paraboloid *p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, degreeToRad(0));
         objects[objectSize++] = p;
 
-        Vector topLeftPoint = bottomPoint + (Vector(0, 1, 0) * height) - (Vector(1, 0, 0) * radiusOnTop);
-        Vector pointNearSurface = topLeftPoint - Vector(0, height * 0.6f, 0);
-        Intersection i = p->findSurfacePointNear(pointNearSurface);
-        Vector axis = i.normal.normalized();
-        float angle = -acosf(axis * Vector(0, 1, 0));
-        bottomPoint = i.pos;
-        radiusOnTop *= 0.55;
-        height *= 0.55;
-        p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, angle);
-        objects[objectSize++] = p;
+        float fullMiddleHeight = height * 0.55f;
+        float fullMiddleRadius = radiusOnTop * 0.55f;
+        float fullTopHeight = fullMiddleHeight * 0.6f;
+        float fullTopRadius = fullMiddleRadius * 0.8f;
 
-        Vector axisNormal = axis % Vector(0, 0, 1);
-        topLeftPoint = bottomPoint + (axis * height) + (axisNormal * radiusOnTop);
-        pointNearSurface = topLeftPoint - (axis * height * 0.2);
-        i = p->findSurfacePointNear(pointNearSurface);
-        axis = i.normal.normalized();
-        angle = -acosf(Vector(0, 1, 0) * axis);
-        bottomPoint = i.pos;
-        radiusOnTop *= 0.8;
-        height *= 0.6;
-        p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, angle);
-        objects[objectSize++] = p;
+        float currentMiddleRadius = fullMiddleRadius;
+        float currentMiddleHeight = fullMiddleHeight;
+        float currentTopHeight = fullTopHeight;
+        float currentTopRadius = fullTopRadius;
+
+        if (currentSegment >= 3 && currentSegment <= 5) {
+            unsigned growingStartFrame = 3 * framesPerSegment;
+            unsigned growingFrameInterval = currentFrame - growingStartFrame;
+            float middleHeightGrowPerFrame = fullMiddleHeight / 4.0f / framesPerSegment;
+            float middleRadiusGrowPerFrame = fullMiddleRadius / 4.0f / framesPerSegment;
+            currentMiddleHeight = middleHeightGrowPerFrame * (float) growingFrameInterval;
+            currentMiddleRadius = middleRadiusGrowPerFrame * (float) growingFrameInterval;
+
+            Vector topLeftPoint = bottomPoint + (Vector(0, 1, 0) * height) - (Vector(1, 0, 0) * radiusOnTop);
+            Vector pointNearSurface = topLeftPoint - Vector(0, height * 0.6f, 0);
+            Intersection i = p->findSurfacePointNear(pointNearSurface);
+            Vector axis = i.normal.normalized();
+            float angle = -acosf(axis * Vector(0, 1, 0));
+            bottomPoint = i.pos;
+            p = new Paraboloid(silver, bottomPoint, currentMiddleRadius, currentMiddleHeight, angle);
+            objects[objectSize++] = p;
+        }
+
+        if (currentSegment >= 6) {
+            if (currentSegment <= 6) {
+                unsigned growingStartFrame = 3 * framesPerSegment;
+                unsigned growingFrameInterval = currentFrame - growingStartFrame;
+                float middleHeightGrowPerFrame = fullMiddleHeight / 4.0f / framesPerSegment;
+                float middleRadiusGrowPerFrame = fullMiddleRadius / 4.0f / framesPerSegment;
+                currentMiddleHeight = middleHeightGrowPerFrame * (float) growingFrameInterval;
+                currentMiddleRadius = middleRadiusGrowPerFrame * (float) growingFrameInterval;
+            }
+            Vector topLeftPoint = bottomPoint + (Vector(0, 1, 0) * height) - (Vector(1, 0, 0) * radiusOnTop);
+            Vector pointNearSurface = topLeftPoint - Vector(0, height * 0.6f, 0);
+            Intersection i = p->findSurfacePointNear(pointNearSurface);
+            Vector axis = i.normal.normalized();
+            float angle = -acosf(axis * Vector(0, 1, 0));
+            bottomPoint = i.pos;
+            p = new Paraboloid(silver, bottomPoint, currentMiddleRadius, currentMiddleHeight, angle);
+            objects[objectSize++] = p;
+
+            if (currentSegment <= 9) {
+                unsigned growingStartFrame = 6 * framesPerSegment;
+                unsigned growingFrameInterval = currentFrame - growingStartFrame;
+                float topHeightGrowPerFrame = fullTopHeight / 4.0f / framesPerSegment;
+                float topRadiusGrowPerFrame = fullTopRadius / 4.0f / framesPerSegment;
+                currentTopHeight = topHeightGrowPerFrame * (float) growingFrameInterval;
+                currentTopRadius = topRadiusGrowPerFrame * (float) growingFrameInterval;
+            }
+            Vector axisNormal = axis % Vector(0, 0, 1);
+            topLeftPoint = bottomPoint + (axis * currentMiddleHeight) + (axisNormal * currentMiddleRadius);
+            pointNearSurface = topLeftPoint - (axis * currentMiddleHeight * 0.2);
+            i = p->findSurfacePointNear(pointNearSurface);
+            axis = i.normal.normalized();
+            angle = -acosf(Vector(0, 1, 0) * axis);
+            bottomPoint = i.pos;
+            p = new Paraboloid(silver, bottomPoint, currentTopRadius, currentTopHeight, angle);
+            objects[objectSize++] = p;
+        }
     }
 };
 
@@ -1076,13 +1193,14 @@ class Scene {
         size_t candidateNr;
         findCandidates(candidates, candidateNr, ray);
 
+        float minT = 99999999.0f;
         Intersection closest = noIntersection;
         for (size_t i = 0; i < candidateNr; i++) {
             Intersection inters = candidates[i]->intersect(ray);
-            if (inters.real) {
+            if (inters.real && inters.rayT < minT) {
                 closest = inters;
                 closest.obj = candidates[i];
-                break;
+                minT = closest.rayT;
             }
         }
         return closest;
@@ -1102,19 +1220,8 @@ public:
         objectSize = lightSize = 0;
     }
 
-    int prevPercent;
     void render() {
         for (unsigned Y = 0; Y < screenHeight; Y++) {
-            int percent = (int) ((((float) Y + 1.0f) / (float) screenHeight) * ((float) currentFrame + 1.0f) / (float) maxFrame * 100.0f);
-            if (percent > prevPercent) {
-                std::cout << "Rendering " << percent << "%" << std::endl;
-                prevPercent = percent;
-                /*
-                for (unsigned i = 0; i< 56; i++)
-                    std::cout<< std::endl;
-                prevPercent = percent;
-                */
-            }
             for (unsigned X = 0; X < screenWidth; X++) {
                 Ray ray = camera->getRay(X, Y);
                 Color color = trace(ray, 0);
@@ -1124,28 +1231,57 @@ public:
     }
 
     void build() {
-        EllipsoidCactus ellipsoidCactus;
         CylinderCactus cylinderCactus;
+        EllipsoidCactus ellipsoidCactus;
         ParaboloidCactus paraboloidCactus;
+
+        Vector cylinderPos(0, -1.0f, 1.0);
         Vector ellipsoidPos(1.0, -1.0f, 2.0);
-        Vector cylinderPos(0, -1.0f, 1.2);
         Vector paraboloidPos(-1.0f, -1.0f, 1.5);
+
+        float cylinderFullHeight = 2.0f;
+        float cylinderFullRadius = 0.5f;
+        float ellipsoidFullHeight = 2.0f;
+        float paraboloidFullHeight = 2.0f;
+        float paraboloidFullRadius = 0.5f;
+
+        float cylinderCurrentHeight;
+        float cylinderCurrentRadius;
+        float ellipsoidCurrentHeight;
+        float paraboloidCurrentHeight;
+        float paraboloidCurrentRadius;
+
+        if (currentSegment <= 4) {
+            cylinderCurrentHeight = (cylinderFullHeight / 2.0f) + (cylinderFullHeight / 2.0f * (currentFrame + 1) / ((float) framesPerSegment * 5.0f));
+            cylinderCurrentRadius = (cylinderFullRadius / 2.0f) + (cylinderFullRadius / 2.0f * (currentFrame + 1) / ((float) framesPerSegment * 5.0f));
+            ellipsoidCurrentHeight = (ellipsoidFullHeight / 2.0f) + (ellipsoidFullHeight / 2.0f * (currentFrame + 1) / ((float) framesPerSegment * 5.0f));
+            paraboloidCurrentHeight = (paraboloidFullHeight / 2.0f) + (paraboloidFullHeight / 2.0f * (currentFrame + 1) / ((float) framesPerSegment * 5.0f));
+            paraboloidCurrentRadius = (paraboloidFullRadius / 2.0f) + (paraboloidFullRadius / 2.0f * (currentFrame + 1) / ((float) framesPerSegment * 5.0f));
+        }
+        else {
+            cylinderCurrentHeight = cylinderFullHeight;
+            cylinderCurrentRadius = cylinderFullRadius;
+            ellipsoidCurrentHeight = ellipsoidFullHeight;
+            paraboloidCurrentHeight = paraboloidFullHeight;
+            paraboloidCurrentRadius = paraboloidFullRadius;
+        }
 
         // asztal
         add(new Circle(desk, Vector(0, -1.0f, 0), Vector(0, 1, 0), 6.0));
 
         // henger-kaktusz
-        cylinderCactus.setPos(cylinderPos, 0.5f, 2.0f);
+        cylinderCactus.setPos(cylinderPos, cylinderCurrentRadius, cylinderCurrentHeight);
         for (size_t i = 0; i < cylinderCactus.objectSize; i++)
             add(cylinderCactus.objects[i]);
 
         // ellipszoid-kaktusz
-        ellipsoidCactus.setPos(ellipsoidPos, 2.0f);
+        ellipsoidCactus.setPos(ellipsoidPos, ellipsoidCurrentHeight);
         for (size_t i = 0; i < ellipsoidCactus.objectSize; i++)
             add(ellipsoidCactus.objects[i]);
 
+
         // paraboloid-kaktusz
-        paraboloidCactus.setPos(paraboloidPos, 0.5f, 2.0f);
+        paraboloidCactus.setPos(paraboloidPos, paraboloidCurrentRadius, paraboloidCurrentHeight);
         for (size_t i = 0; i < paraboloidCactus.objectSize; i++)
             add(paraboloidCactus.objects[i]);
 
@@ -1173,7 +1309,7 @@ public:
         float horizontalEyeDistance = 4.0f;
         float eyeHeight = 1.2f;
 
-        float delta = (float) cameraRounds * 2 * PI / (float) maxFrame;
+        float delta = ((float) cameraRounds) * 2 * PI / (float) maxFrame;
         float angle = currentFrame * delta - degreeToRad(90.0f);
         Vector horizontalEyeDirection = Vector(horizontalEyeDistance * cosf(angle),
                 0.0f,
@@ -1221,7 +1357,12 @@ void writeImageToFile() {
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization() {
     glViewport(0, 0, screenWidth, screenHeight);
-    for (currentFrame = 0; currentFrame < maxFrame; currentFrame++) {
+    currentFrame = 160;
+    unsigned framesPerThread = maxFrame / 8;
+    unsigned threadNr = 7;
+    for (currentFrame = threadNr * framesPerThread; currentFrame < (threadNr + 1) * framesPerThread; currentFrame++) {
+        std::cout << "Rendering frame " << currentFrame << std::endl;
+        currentSegment = (unsigned) ((float) currentFrame / (float) framesPerSegment);
         Scene scene;
         scene.build();
         scene.render();
