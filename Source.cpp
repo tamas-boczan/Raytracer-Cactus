@@ -12,6 +12,9 @@
 
 #include <GL/gl.h>                                                                                                                                                                                                                
 #include <GL/glut.h>
+#include <iostream>
+#include <stdio.h>
+#include <sstream>
 
 #endif
 
@@ -38,6 +41,11 @@ struct ParaboloidCactus;
 
 #define NEAR_ZERO 0.001f
 #define PI 3.14159265359f
+
+unsigned currentFrame;
+const unsigned maxFrame = 6;
+const unsigned cameraRounds = 2;
+
 
 //--------------------------------------------------------
 // 3D Vektor
@@ -346,8 +354,8 @@ public:
     }
 };
 
-const int screenWidth = 600;    // alkalmazás ablak felbontása
-const int screenHeight = 600;
+const int screenWidth = 1280;    // alkalmazás ablak felbontása
+const int screenHeight = 720;
 
 const size_t maxObjectCount = 20;
 const size_t maxLightCount = 3;
@@ -881,7 +889,7 @@ struct CylinderCactus {
         height *= 0.45f;
         objects[objectSize++] = new Cylinder(glass, bottomCenter, radius, height, degreeToRad(0));
     }
-} cylinderCactus;
+};
 
 struct EllipsoidCactus {
     Object *objects[3];
@@ -928,7 +936,7 @@ struct EllipsoidCactus {
         e = new Ellipsoid(gold, middle, size, angle);
         objects[objectSize++] = e;
     }
-} ellipsoidCactus;
+};
 
 struct ParaboloidCactus {
     Object *objects[3];
@@ -965,8 +973,7 @@ struct ParaboloidCactus {
         p = new Paraboloid(silver, bottomPoint, radiusOnTop, height, angle);
         objects[objectSize++] = p;
     }
-} paraboloidCactus;
-
+};
 
 class Scene {
     Object *objects[maxObjectCount];
@@ -1095,16 +1102,31 @@ public:
         objectSize = lightSize = 0;
     }
 
+    int prevPercent;
     void render() {
-        for (unsigned Y = 0; Y < screenHeight; Y++)
+        for (unsigned Y = 0; Y < screenHeight; Y++) {
+            int percent = (int) ((((float) Y + 1.0f) / (float) screenHeight) * ((float) currentFrame + 1.0f) / (float) maxFrame * 100.0f);
+            if (percent > prevPercent) {
+                std::cout << "Rendering " << percent << "%" << std::endl;
+                prevPercent = percent;
+                /*
+                for (unsigned i = 0; i< 56; i++)
+                    std::cout<< std::endl;
+                prevPercent = percent;
+                */
+            }
             for (unsigned X = 0; X < screenWidth; X++) {
                 Ray ray = camera->getRay(X, Y);
                 Color color = trace(ray, 0);
                 image[Y * screenWidth + X] = color;
             }
+        }
     }
 
     void build() {
+        EllipsoidCactus ellipsoidCactus;
+        CylinderCactus cylinderCactus;
+        ParaboloidCactus paraboloidCactus;
         Vector ellipsoidPos(1.0, -1.0f, 2.0);
         Vector cylinderPos(0, -1.0f, 1.2);
         Vector paraboloidPos(-1.0f, -1.0f, 1.5);
@@ -1147,13 +1169,21 @@ public:
          */
 
         // döntve
-        Vector lookat = Vector(0, 0.9, 0);
-        Vector eye = Vector(0, 1.5, -0.7f);
-        Vector right = Vector(1, 0, 0);
+        Vector lookat = Vector(0, 0.5, 1.2);
+        float horizontalEyeDistance = 4.0f;
+        float eyeHeight = 1.2f;
+
+        float delta = (float) cameraRounds * 2 * PI / (float) maxFrame;
+        float angle = currentFrame * delta - degreeToRad(90.0f);
+        Vector horizontalEyeDirection = Vector(horizontalEyeDistance * cosf(angle),
+                0.0f,
+                horizontalEyeDistance * sinf(angle)).normalized();
+        Vector eye = lookat + (horizontalEyeDirection * horizontalEyeDistance) + (Vector(0, 1, 0) * eyeHeight);
+        Vector right = horizontalEyeDirection % Vector(0, 1, 0);
         Vector dir = (lookat - eye).normalized();
         Vector up = (dir % right).normalized();
-        //right *= 1.5;
-        //up *= 1.5;
+        right *= 16 / 3.6;
+        up *= 9 / 3.6;
 
         camera = new Camera(eye, lookat, up, right, screenWidth, screenHeight);
     }
@@ -1165,13 +1195,38 @@ public:
             delete objects[i];
         delete camera;
     }
-} scene;
+};
+
+void writeImageToFile() {
+    FILE *f;
+    std::stringstream strs;
+    strs << "image";
+    strs << currentFrame;
+    strs << ".ppm";
+    std::string temp_str = strs.str();
+    f = fopen(temp_str.c_str(), "w");
+    fprintf(f, "P3\n%d %d\n255\n ", screenWidth, screenHeight);
+
+    for (int Y = screenHeight - 1; Y >= 0; Y--) {
+        for (int X = 0; X < screenWidth; X++) {
+            Color c = image[Y * screenWidth + X] * 255.0f;
+            fprintf(f, "%d ", (int) min((float) (c.r + 0.5), 255.0f));
+            fprintf(f, "%d ", (int) min((float) (c.g + 0.5), 255.0f));
+            fprintf(f, "%d ", (int) min((float) (c.b + 0.5), 255.0f));
+        }
+    }
+    fclose(f);
+}
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization() {
     glViewport(0, 0, screenWidth, screenHeight);
-    scene.build();
-    scene.render();
+    for (currentFrame = 0; currentFrame < maxFrame; currentFrame++) {
+        Scene scene;
+        scene.build();
+        scene.render();
+        writeImageToFile();
+    }
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
@@ -1183,7 +1238,7 @@ void onDisplay() {
 
 int main(int argc, char **argv) {
     glutInit(&argc, argv);                // GLUT inicializalasa
-    glutInitWindowSize(600, 600);            // Alkalmazas ablak kezdeti merete 600x600 pixel
+    glutInitWindowSize(screenWidth, screenHeight);            // Alkalmazas ablak felbontasa
     glutInitWindowPosition(100, 100);            // Az elozo alkalmazas ablakhoz kepest hol tunik fel
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);    // 8 bites R,G,B,A + dupla buffer + melyseg buffer
 
