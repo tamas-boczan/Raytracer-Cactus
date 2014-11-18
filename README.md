@@ -1,7 +1,7 @@
-OpenGL-Raytracer-Cactus
+Ray Tracer: Cactus
 ===========================
 
-Raytracing homework.
+Ray tracing homework.
 
  [![Rendered video](screenshot.png)][Rendered video]
  [Rendered video]
