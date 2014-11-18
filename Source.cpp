@@ -15,6 +15,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <sstream>
+#include <iomanip>
 
 #endif
 
@@ -43,11 +44,13 @@ struct ParaboloidCactus;
 #define PI 3.14159265359f
 
 const unsigned timeSegments = 15;
-const unsigned maxFrame = timeSegments * 16;
+const unsigned maxFrame = timeSegments * 60;
 const unsigned cameraRounds = 3;
 const unsigned framesPerSegment = maxFrame / timeSegments;
 unsigned currentFrame;
 unsigned currentSegment;
+unsigned startFrame;
+unsigned endFrame;
 
 
 //--------------------------------------------------------
@@ -357,8 +360,8 @@ public:
     }
 };
 
-const int screenWidth = 1280;    // alkalmazás ablak felbontása
-const int screenHeight = 720;
+const int screenWidth = 3840;    // alkalmazás ablak felbontása
+const int screenHeight = 2160;
 
 const size_t maxObjectCount = 20;
 const size_t maxLightCount = 3;
@@ -1294,16 +1297,6 @@ public:
         // paraboloid mögött
         add(new Light(Color(8, 12, 8), paraboloidPos + Vector(0, 2.0, 1.5)));
 
-        // kamera
-        // középen
-        /*
-         Vector lookat = Vector(0, 0, 0);
-         Vector eye = Vector(0, 0, -2);
-         Vector right = Vector(1, 0, 0);
-         Vector dir = (lookat - eye).normalized();
-         Vector up = (dir % right).normalized();
-         */
-
         // döntve
         Vector lookat = Vector(0, 0.5, 1.2);
         float horizontalEyeDistance = 4.0f;
@@ -1336,8 +1329,8 @@ public:
 void writeImageToFile() {
     FILE *f;
     std::stringstream strs;
-    strs << "image";
-    strs << currentFrame;
+    strs << "frame";
+    strs << std::setfill('0') << std::setw(3) << currentFrame;
     strs << ".ppm";
     std::string temp_str = strs.str();
     f = fopen(temp_str.c_str(), "w");
@@ -1357,10 +1350,7 @@ void writeImageToFile() {
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization() {
     glViewport(0, 0, screenWidth, screenHeight);
-    currentFrame = 160;
-    unsigned framesPerThread = maxFrame / 8;
-    unsigned threadNr = 7;
-    for (currentFrame = threadNr * framesPerThread; currentFrame < (threadNr + 1) * framesPerThread; currentFrame++) {
+    for (currentFrame = startFrame; currentFrame <= endFrame; currentFrame++) {
         std::cout << "Rendering frame " << currentFrame << std::endl;
         currentSegment = (unsigned) ((float) currentFrame / (float) framesPerSegment);
         Scene scene;
@@ -1377,7 +1367,20 @@ void onDisplay() {
 
 }
 
+void handleParameters(int argc, char **argv) {
+    if (argc >= 3) {
+        startFrame = (unsigned int) atoi(argv[1]);
+        endFrame = (unsigned int) atoi(argv[2]);
+    }
+    else {
+        startFrame = 0;
+        endFrame = maxFrame - 1;
+    }
+}
+
+// parameters: start frame (>=0), end frame (<maxFrame -1)
 int main(int argc, char **argv) {
+    handleParameters(argc, argv);
     glutInit(&argc, argv);                // GLUT inicializalasa
     glutInitWindowSize(screenWidth, screenHeight);            // Alkalmazas ablak felbontasa
     glutInitWindowPosition(100, 100);            // Az elozo alkalmazas ablakhoz kepest hol tunik fel
