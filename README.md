@@ -3,7 +3,9 @@ OpenGL-Raytracer-Cactus
 
 Raytracing homework.
 
- ![Screenshot](screenshot.png "Screenshot")
+ [![Rendered video](screenshot.png)][Rendered video]
+ [Rendered video]
+ [Rendered video]: http://www.youtube.com/watch?v=4Q14RlkWwX0
 
 
 Feladat
